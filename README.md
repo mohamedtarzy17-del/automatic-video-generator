@@ -16,6 +16,10 @@
   <a href="https://github.com/johnvictorpaul95/automatic-video-generator/stargazers"><img src="https://img.shields.io/badge/PRs-Welcome-brightgreen.svg?style=for-the-badge" alt="PRs Welcome"></a>
 </p>
 
+<p align="center">
+  <img src="public/assets/social_preview.png" alt="Automatic Video Generator Banner" width="100%" />
+</p>
+
 ---
 
 ## 🌟 What is Automatic Video Generator?
