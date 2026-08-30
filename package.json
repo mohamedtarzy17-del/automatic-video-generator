@@ -55,6 +55,10 @@
     "dev": "tsx src/studio.ts",
     "build": "tsx src/render.ts",
     "upgrade": "remotion upgrade",
+    "render-cartoon": "remotion render PureCartoonExplainer rendered/cartoon_story.mp4 --overwrite",
+    "render-documentary": "remotion render USDebtUltra rendered/us_debt_documentary.mp4 --overwrite",
+    "render-tech": "remotion render NvidiaExplainer rendered/nvidia_tech_explainer.mp4 --overwrite",
+    "render-ppt": "remotion render PPTVideoPremium rendered/presentation_video.mp4 --overwrite",
     "render-iran": "remotion render IranNuclearTalks rendered/iran_nuclear_talks_premium_v3.mp4 --overwrite",
     "lint": "eslint src && tsc"
   }

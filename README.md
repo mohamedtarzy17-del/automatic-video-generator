@@ -145,10 +145,26 @@ python generate_unseen_vo.py
 python transcribe_align.py --audio voiceover.mp3
 ```
 
-### 4. Render to 4K MP4
+### 4. Render Ready-to-Use Video Presets (1-Command Renders)
+
+You can render high-definition 4K videos out-of-the-box with a single command:
+
+| Video Style | NPM Command | Description |
+| :--- | :--- | :--- |
+| 🎨 **2D Cartoon Story** | `npm run render-cartoon` | 2D Kurzgesagt-style vector cartoon animation with character speech bubbles & SFX. |
+| 📹 **Vox-Style Documentary** | `npm run render-documentary` | High-impact financial/geo-political documentary with B-roll & glowing line charts. |
+| ⚡ **Tech & AI Explainer** | `npm run render-tech` | AI earnings breakdown with dynamic HUD graphs & glowing circuit boards. |
+| 📄 **PowerPoint-to-Video** | `npm run render-ppt` | Auto-convert PowerPoint `.pptx` slides & speaker notes into animated video format. |
 
 ```bash
-npx remotion render MyCustomVideo rendered/output.mp4 --overwrite
+# Render 2D Cartoon Story
+npm run render-cartoon
+
+# Render Vox-style Documentary
+npm run render-documentary
+
+# Render Tech Explainer
+npm run render-tech
 ```
 
 ---
