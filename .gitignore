@@ -1,10 +1,36 @@
 node_modules
 dist
 .DS_Store
+.npm_cache/
 
-# Ignore the output video from Git but not videos you import into src/.
-out
+# Renders and heavy binary outputs
+out/
+rendered/
+temp_render*
+temp_nm/
+*.mp4
+!public/imported_videos/sample_nature.mp4
+
+# Environment & Credentials
 .env
-
-# GCP credentials
 serviceaccount.json
+
+# Machine Learning Models & Heavy Weights
+models/
+*.onnx
+*.bin
+*.pth
+*.safetensors
+whisperx_env/
+__pycache__/
+*.pyc
+.venv/
+
+# Extracted PPT / Temporary data
+ppt_extracted/
+*.pptx
+
+# Scratch & test outputs
+scratch/
+test_*.txt
+write_test.txt

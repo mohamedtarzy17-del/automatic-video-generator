@@ -1,183 +1,197 @@
-# Remotion Text-to-Speech Template
-
-Using Google Cloud Platform + Firebase Storage
-
-> This template showcases the use of the new [Visual Editing](https://www.remotion.dev/docs/visual-editing) features, as highlighted in the [Remotion v4 keynote](https://www.youtube.com/watch?v=NX9YTOsLGpQ).
-
 <p align="center">
-  <a href="https://github.com/remotion-dev/logo">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://github.com/remotion-dev/logo/raw/main/animated-logo-banner-dark.apng">
-      <img alt="Animated Remotion Logo" src="https://github.com/remotion-dev/logo/raw/main/animated-logo-banner-light.gif">
-    </picture>
-  </a>
+  <h1 align="center">🎬 Automatic Video Generator</h1>
+  <p align="center">
+    <strong>Open-Source Programmatic AI Video Engine & Motion Studio</strong>
+  </p>
+  <p align="center">
+    Built with <strong>Remotion (React 19)</strong>, <strong>TypeScript</strong>, <strong>Python TTS (Edge-TTS / Kokoro)</strong> & <strong>WhisperX</strong> alignment.
+  </p>
 </p>
 
-## Things to keep in mind:
+<p align="center">
+  <a href="https://github.com/remotion-dev/remotion"><img src="https://img.shields.io/badge/Remotion-v4.0+-blue?style=for-the-badge&logo=react" alt="Remotion"></a>
+  <a href="https://react.dev"><img src="https://img.shields.io/badge/React-v19.0-61DAFB?style=for-the-badge&logo=react" alt="React"></a>
+  <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=for-the-badge&logo=typescript" alt="TypeScript"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="License"></a>
+  <a href="https://github.com/johnvictorpaul95/automatic-video-generator/stargazers"><img src="https://img.shields.io/badge/PRs-Welcome-brightgreen.svg?style=for-the-badge" alt="PRs Welcome"></a>
+</p>
 
-1. As the text for TTS changes, you may also want to programmatically alter the `durationInFrames` for your `<Composition/>` using [`getAudioDurationInSeconds()`](https://www.remotion.dev/docs/get-audio-duration-in-seconds).
+---
 
-2. [Special consideration must be made](#running-on-cloud-development-environments) when using cloud development services (like GitHub Codespaces, StackBlitz, etc).
+## 🌟 What is Automatic Video Generator?
 
-3. Since the Google Text-to-speech APIs cannot be called from the browser, a server is included in this example that will spawn up during development. This server is **not compatible with Remotion Lambda.** If you use SSR APIs, you must start the server as well.
+**Automatic Video Generator** is an open-source **React-based AI video engine & toolkit** designed for developers and content creators to programmatically build their own 4K videos. It combines component-driven motion graphics with AI voice synthesis (Edge-TTS, Kokoro, Google TTS), WhisperX word-level timestamp alignment, automated B-roll scraping, and dynamic data visualization components.
 
-## Get Started
+Rather than a static video player, **Automatic Video Generator is a complete builder framework**: you define scripts, customize themes, add visual components, and render high-quality videos automatically from code.
 
-### 1. Create a [Firebase Project](https://console.firebase.google.com/)
+---
 
-<img src="assets/firebase-create.png" alt="Create project" width="450"/>
-  
-<!-- ![Create project](./assets/firebase-create.png) -->
+## 🛠️ How to Build Your Own Custom Video
 
-### 2. Register your app in Firebase
+Creating your own video takes just 3 steps:
 
-- Go to ⚙️ → Project Settings → "General" tab.
-- Scroll down to "Your apps" section, and register a "Web App".
+### Step 1: Write Your React Composition (`src/MyCustomVideo.tsx`)
 
-https://user-images.githubusercontent.com/38887390/233016949-b38d3644-cfeb-48be-938c-41574cbae0c4.mp4
+```tsx
+import { AbsoluteFill, Sequence } from 'remotion';
+import { KineticTypography } from './components/KineticTypography';
+import { LineChartAnimation } from './components/DataVisualizations';
 
-<!-- VIDEO /assets/firebase-register.mp4 -->
-
-- Copy the config credentials and paste them into `.env.example`.  
-  Then rename the file to `.env`.
-
-### 3. Enable storage, create a storage bucket with your preferred location
-
-Press: Build → Storage → Get started → Start in production mode → Next → Done
-
-https://user-images.githubusercontent.com/38887390/233017269-ed1812aa-d0f1-4d3a-907c-4b473cc6894e.mp4
-
-<!-- VIDEO /assets/firebase-storage-enable.mp4 -->
-
-### 4. Setup security rules
-
-Edit rules to allow read, and write access for the `remotion-gtts` directory (or any other directory that you have specified for `audioDirectoryInBucket` in the `constants.ts` file).
-
-<!-- ![Security rules](./assets/firebase-storage-rules.png) -->
-
-- Configure bucket rules, such as the following:
-
-```js
-  rules_version = '2';
-  service firebase.storage {
-    match /b/{bucket}/o {
-      match /remotion-gtts/{allPaths=**} {
-        allow read, write: if true;
-      }
-    }
-  }
+export const MyCustomVideo = () => {
+  return (
+    <AbsoluteFill style={{ backgroundColor: '#0f172a' }}>
+      <Sequence from={0} durationInFrames={150}>
+        <KineticTypography text="BUILD YOUR OWN AI VIDEOS IN REACT" />
+      </Sequence>
+      <Sequence from={150} durationInFrames={200}>
+        <LineChartAnimation data={[10, 45, 95, 230]} label="REVENUE GROWTH" />
+      </Sequence>
+    </AbsoluteFill>
+  );
+};
 ```
 
-> For production use, it is recommended to implement more rigorous validation measures to enhance security, especially for write operations.
+### Step 2: Register in `src/Root.tsx`
 
-<img src="assets/firebase-storage-rules.png" alt="Security rules" width="450"/>
-
-### 5. Enable Text-to-Speech API on [Google Cloud Platform](https://console.cloud.google.com/)
-
-Go to https://console.cloud.google.com/welcome and in the top dropdown, select your project under the `All` tab.
-
-Navigate to https://console.cloud.google.com/apis/library/texttospeech.googleapis.com and enable the API.
-
-You may be required to enable billing, by creating a billing account. (Be sure to also review the pricing tab)
-
-  <!-- ![Enable API](/assets/gcp-enable-api.png) -->
-  <img src="assets/gcp-enable-api.png" alt="Enable API" width="450"/>
-
-https://user-images.githubusercontent.com/38887390/233017359-daadcd50-bd5b-42bb-81a4-dd8cfca48a79.mp4
-
-<!-- VIDEO /assets/gcp-enable-api.mp4 -->
-
-### 6. Create Credentials
-
-- After API is enabled, go to **Credentials** (in the sidebar)
-
-  <img src="assets/gcp-manage-api.png" alt="Manage API" width="450"/>
-  <!-- ![Manage API](/assets/gcp-manage-api.png) -->
-
-- Click **Create Credentials** and select **Service Account**.
-
-  <img src="assets/gcp-create-credentials.png" alt="Create credentials" width="450"/>
-
-<!-- ![Create credentials](/assets/gcp-create-credentials.png) -->
-
-- Fill relevant fields, select the _Basic_ role of **_Owner_**, and skip the other optional fields if not required.
-
-https://user-images.githubusercontent.com/38887390/233017468-8defa322-b79a-4ad8-9d04-e5b8c2bd26b8.mp4
-
-<!-- VIDEO /assets/gcp-create-serviceaccount.mp4 -->
-
-- Select the newly created Service Account, and under "Keys" create a JSON key to download credentials as a `.json` file.
-
-https://user-images.githubusercontent.com/38887390/233017530-9bf8aeef-ff45-4e5a-8886-13a1dba2608a.mp4
-
-<!-- VIDEO /assets/gcp-create-key.mp4  -->
-
-- Place the downloaded JSON file in the root of your project, and rename it as `serviceaccount.json`.
-
-  <img src="assets/serviceaccount-dir.png" alt="Credentials location" width="200"/>
-
-> **IMPORTANT:** This file must never be committed, and must be added to .gitignore, .dockerignore, etc. if you change its name to something different.
-
-> If you change the location of this file, make sure to also update `GOOGLE_APPLICATION_CREDENTIALS` in `.env`
-
-## Example
-
-Here's a sample video rendered using this template. _(Be sure to unmute the player)_
-
-https://user-images.githubusercontent.com/38887390/232199560-d275def7-d147-4f29-acc6-5a81d267ba68.mp4
-
-## Commands
-
-#### Install Dependencies
-
-```console
-npm i
+```tsx
+<Composition
+  id="MyCustomVideo"
+  component={MyCustomVideo}
+  durationInFrames={350}
+  fps={30}
+  width={1920}
+  height={1080}
+/>
 ```
 
-#### Start Remotion Studio
+### Step 3: Render Your Video to MP4
 
-```console
+```bash
+npx remotion render MyCustomVideo rendered/my_custom_video.mp4
+```
+
+---
+
+## ✨ Features & Modules
+
+| Module | Description |
+| :--- | :--- |
+| 🧩 **Modular Motion UI Library** | Glowing HUDs, kinetic text overlays, financial charts, split-screens, & drifting camera frames. |
+| 🎙️ **Plug-and-Play AI Voice Engine** | Python scripts for Edge-TTS (free neural voices), Kokoro-82M (local neural), & Google TTS. |
+| ⏱️ **WhisperX Auto-Alignment** | Word-level timestamp synchronization for subtitle overlays & kinetic text sync. |
+| 📄 **PowerPoint-to-Video Engine** | Automatically parse `.pptx` slides, extract speaker notes, synthesize voiceover & build videos. |
+| 🎬 **25+ Starter Compositions** | Example compositions (Documentaries, Tech Demos, Financial Reports, Cartoons) to clone & customize. |
+
+---
+
+## 🏗️ Architecture Pipeline
+
+```mermaid
+flowchart LR
+    A[Your Custom Script / PPTX] --> B[AI Voice Synthesis]
+    B --> C[WhisperX Word Alignment]
+    C --> D[Remotion React Studio]
+    D --> E[Render 4K MP4]
+    
+    subgraph Voice Generators
+    B1[Edge-TTS / Kokoro]
+    B2[Google Cloud TTS]
+    end
+    
+    B --> B1 & B2
+```
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- **Node.js** v18+ and **npm** / **pnpm**
+- **Python 3.10+** (optional: for AI voice generation & WhisperX subtitle alignment)
+- **ffmpeg** installed on system path
+
+### 1. Clone & Install Dependencies
+
+```bash
+git clone https://github.com/johnvictorpaul95/automatic-video-generator.git
+cd automatic-video-generator
+npm install
+```
+
+### 2. Launch Remotion Studio (Visual Editor)
+
+```bash
 npm run dev
 ```
 
-#### Running on Cloud development environments:
+Open `http://localhost:3000` in your browser to interactively edit, scrub timelines, tweak animations, and preview compositions in real-time.
 
-- To run Remotion Studio or Renders, the server also needs to be started. Refer to `src/render.ts` to learn how to do so.
+### 3. Generate Audio for Your Script (Optional)
 
-##### GitHub Codespaces:
+```bash
+# Generate AI Voiceover from text
+python generate_unseen_vo.py
 
-- While using GitHub Codespaces, You need to set the server visibility to **public** using the CLI, every time the server starts. This is **NOT** recommended and must only be done in trusted scenarios.
-
-```console
-gh codespace ports visibility 5050:public -c $CODESPACE_NAME
+# Align subtitles with WhisperX
+python transcribe_align.py --audio voiceover.mp3
 ```
 
-Replace `5050` with your own port, if you have changed it to something else. To avoid doing this every time, you can forward the port manually ahead of time.
+### 4. Render to 4K MP4
 
-- Then reload the VS Code window by pressing <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> and selecting **Developer: Reload Window**
-
-#### Render video
-
-```console
-npx remotion render
+```bash
+npx remotion render MyCustomVideo rendered/output.mp4 --overwrite
 ```
 
-See [docs for server-side rendering](https://www.remotion.dev/docs/ssr) here.
+---
 
-#### Upgrade Remotion
+## 🛠️ Project Structure
 
-```console
-npx remotion upgrade
+```
+automatic-video-generator/
+├── src/
+│   ├── components/         # Reusable Motion Graphics, Kinetic Text, Charts, HUDs
+│   ├── Root.tsx            # Main Composition Registry & Configurations
+│   ├── USDebtUltra.tsx     # Vox-style Documentary Template
+│   ├── IranNuclearTalks.tsx# Kinetic Typographic Geo-political Template
+│   ├── PPTVideoPremium.tsx # PowerPoint-to-Video Engine
+│   └── studio.ts           # Remotion Studio Entrypoint
+├── pipeline/               # Automation scripts for asset generation
+├── docs/                   # Full documentation & guides
+├── fetch_broll.ts          # Automated Stock Video / Image Scraper
+├── generate_unseen_vo.py   # Edge-TTS / Kokoro Voice Synthesis Pipeline
+└── transcribe_align.py     # WhisperX Word-Level Timestamp Alignment
 ```
 
-## Docs
+---
 
-Get started with Remotion by reading the [fundamentals page](https://www.remotion.dev/docs/the-fundamentals).
+## 📈 Interactive Browser Previews
 
-## Issues
+Launch fast, lightweight HTML preview dashboards without starting a full render server:
 
-Found an issue with Remotion? [File an issue here](https://github.com/JonnyBurger/remotion/issues/new).
+- Open [`youtube_policy_dash_preview.html`](./youtube_policy_dash_preview.html) in your browser for a live UI breakdown.
+- Open [`chatgpt_demo_preview.html`](./chatgpt_demo_preview.html) for an interactive component demo.
 
-## License
+---
 
-Note that for some entities a company license is needed. Read [the terms here](https://github.com/JonnyBurger/remotion/blob/main/LICENSE.md).
+## 🤝 Contributing
+
+Contributions, issues, and feature requests are welcome! Feel free to check out the [issues page](https://github.com/johnvictorpaul95/automatic-video-generator/issues).
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+---
+
+## 📜 License
+
+Distributed under the **MIT License**. See [`LICENSE`](./LICENSE) for more information.
+
+---
+
+<p align="center">
+  Built with ❤️ for creators, developers, and open-source enthusiasts. Give it a ⭐️ if you find it useful!
+</p>
