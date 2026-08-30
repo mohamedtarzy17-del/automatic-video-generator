@@ -1,0 +1,38 @@
+[
+    {
+        "index": 1,
+        "start_sec": 0.231,
+        "end_sec": 6.235,
+        "start_frame": 7,
+        "end_frame": 187,
+        "duration_frames": 180,
+        "text": "For decades, the global economy relied on a simple formula, Western innovation, manufactured in the East."
+    },
+    {
+        "index": 2,
+        "start_sec": 7.216,
+        "end_sec": 10.398,
+        "start_frame": 216,
+        "end_frame": 312,
+        "duration_frames": 96,
+        "text": "But over the last decade, that dynamic quietly inverted."
+    },
+    {
+        "index": 3,
+        "start_sec": 11.379,
+        "end_sec": 13.92,
+        "start_frame": 341,
+        "end_frame": 418,
+        "duration_frames": 77,
+        "text": "China is no longer just the world's factory floor."
+    },
+    {
+        "index": 4,
+        "start_sec": 14.941,
+        "end_sec": 20.365,
+        "start_frame": 448,
+        "end_frame": 611,
+        "duration_frames": 163,
+        "text": "It is rapidly becoming the epicenter of industrial tech, clean energy, and advanced manufacturing."
+    }
+]

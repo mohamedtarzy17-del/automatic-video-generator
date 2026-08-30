@@ -1,0 +1,187 @@
+{
+  "title": "The Hidden Truth Behind Car Software Subscriptions",
+  "topic": "Car Software Subscriptions",
+  "episodes_style": {
+    "palette": "vibrant neon cyan and dark slate",
+    "line_weight": "bold clean vector cartoon outline",
+    "character_sheet": "2D cartoon tech reporter mascot"
+  },
+  "scenes": [
+    {
+      "scene_id": 1,
+      "beat_type": "hook",
+      "narration_text": "Behind every single piece of Car Software Subscriptions lies a secret financial mechanism that most people never see.",
+      "duration_estimate": 22.0,
+      "visual_type": "illustration",
+      "emotion_tag": "curiosity",
+      "camera_move": "zoomIn",
+      "on_screen_text": "THE SECRET OF CAR SOFTWARE SUBSCRIPTIONS",
+      "prompt_seed": 100001,
+      "character_prompt": "cartoon reporter mascot examining glowing server with magnifying glass",
+      "background_prompt": "dark digital matrix background with neon green data streams",
+      "layer_assets": {
+        "bg": "illustrations/scene_1_bg.png",
+        "character": "illustrations/scene_1_char.png",
+        "fg": "illustrations/scene_1_fg.png"
+      },
+      "animation_mode": "remotion_parallax",
+      "parallax_config": {
+        "bg_speed": 0.05,
+        "char_speed": 0.12,
+        "fg_speed": 0.22
+      },
+      "audio_file": "scene_1_audio.mp3",
+      "timings_file": "scene_1_timings.json",
+      "mixed_audio_file": "scene_1_audio.mp3",
+      "sfx_triggers": [
+        {
+          "sfx": "sfx/whoosh.mp3",
+          "frame": 0,
+          "volume": 0.6
+        },
+        {
+          "sfx": "sfx/pop.mp3",
+          "frame": 15,
+          "volume": 0.7
+        },
+        {
+          "sfx": "sfx/typing.mp3",
+          "frame": 30,
+          "volume": 0.35
+        }
+      ]
+    },
+    {
+      "scene_id": 2,
+      "beat_type": "build",
+      "narration_text": "For over a decade, major institutions engineered Car Software Subscriptions to operate behind closed doors.",
+      "duration_estimate": 25.0,
+      "visual_type": "stock",
+      "emotion_tag": "clarity",
+      "camera_move": "panRight",
+      "on_screen_text": "SYSTEM ARCHITECTURE",
+      "prompt_seed": 100002,
+      "character_prompt": "cartoon analyst presenting flow chart on digital whiteboard",
+      "background_prompt": "modern corporate server room with spinning rack lights",
+      "layer_assets": {
+        "bg": "illustrations/scene_2_bg.png",
+        "character": "illustrations/scene_2_char.png",
+        "fg": "illustrations/scene_2_fg.png"
+      },
+      "animation_mode": "remotion_parallax",
+      "parallax_config": {
+        "bg_speed": 0.05,
+        "char_speed": 0.12,
+        "fg_speed": 0.22
+      },
+      "audio_file": "scene_2_audio.mp3",
+      "timings_file": "scene_2_timings.json",
+      "mixed_audio_file": "scene_2_audio.mp3",
+      "sfx_triggers": [
+        {
+          "sfx": "sfx/whoosh.mp3",
+          "frame": 0,
+          "volume": 0.6
+        },
+        {
+          "sfx": "sfx/pop.mp3",
+          "frame": 15,
+          "volume": 0.7
+        },
+        {
+          "sfx": "sfx/typing.mp3",
+          "frame": 30,
+          "volume": 0.35
+        }
+      ]
+    },
+    {
+      "scene_id": 3,
+      "beat_type": "tension",
+      "narration_text": "Yet when software locks and paywalls were introduced, the entire model triggered a massive backlash.",
+      "duration_estimate": 24.0,
+      "visual_type": "illustration",
+      "emotion_tag": "tension",
+      "camera_move": "zoomOut",
+      "on_screen_text": "HARDWARE PAYWALLS",
+      "prompt_seed": 100003,
+      "character_prompt": "cartoon character staring at red padlocked digital screen",
+      "background_prompt": "industrial warehouse with warning lights and lock symbols",
+      "layer_assets": {
+        "bg": "illustrations/scene_3_bg.png",
+        "character": "illustrations/scene_3_char.png",
+        "fg": "illustrations/scene_3_fg.png"
+      },
+      "animation_mode": "remotion_parallax",
+      "parallax_config": {
+        "bg_speed": 0.05,
+        "char_speed": 0.12,
+        "fg_speed": 0.22
+      },
+      "audio_file": "scene_3_audio.mp3",
+      "timings_file": "scene_3_timings.json",
+      "mixed_audio_file": "scene_3_audio.mp3",
+      "sfx_triggers": [
+        {
+          "sfx": "sfx/whoosh.mp3",
+          "frame": 0,
+          "volume": 0.6
+        },
+        {
+          "sfx": "sfx/pop.mp3",
+          "frame": 15,
+          "volume": 0.7
+        },
+        {
+          "sfx": "sfx/typing.mp3",
+          "frame": 30,
+          "volume": 0.35
+        }
+      ]
+    },
+    {
+      "scene_id": 4,
+      "beat_type": "payoff",
+      "narration_text": "As Car Software Subscriptions shifts to software platforms, the line between buying a product and renting it has vanished.",
+      "duration_estimate": 20.0,
+      "visual_type": "text_card",
+      "emotion_tag": "revelation",
+      "camera_move": "tilt",
+      "on_screen_text": "THE ERA OF RENTING EVERYTHING",
+      "prompt_seed": 100004,
+      "character_prompt": "cartoon mascot standing atop digital globe holding a key",
+      "background_prompt": "futuristic city skyline at sunset with neon light trails",
+      "layer_assets": {
+        "bg": "illustrations/scene_4_bg.png",
+        "character": "illustrations/scene_4_char.png",
+        "fg": "illustrations/scene_4_fg.png"
+      },
+      "animation_mode": "remotion_parallax",
+      "parallax_config": {
+        "bg_speed": 0.05,
+        "char_speed": 0.12,
+        "fg_speed": 0.22
+      },
+      "audio_file": "scene_4_audio.mp3",
+      "timings_file": "scene_4_timings.json",
+      "mixed_audio_file": "scene_4_audio.mp3",
+      "sfx_triggers": [
+        {
+          "sfx": "sfx/whoosh.mp3",
+          "frame": 0,
+          "volume": 0.6
+        },
+        {
+          "sfx": "sfx/pop.mp3",
+          "frame": 15,
+          "volume": 0.7
+        },
+        {
+          "sfx": "sfx/typing.mp3",
+          "frame": 30,
+          "volume": 0.35
+        }
+      ]
+    }
+  ]
+}
