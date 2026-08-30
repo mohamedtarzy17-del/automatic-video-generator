@@ -10,6 +10,7 @@ temp_render*
 temp_nm/
 *.mp4
 !public/imported_videos/sample_nature.mp4
+!public/assets/*.mp4
 
 # Environment & Credentials
 .env

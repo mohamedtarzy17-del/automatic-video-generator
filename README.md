@@ -20,6 +20,10 @@
   <img src="public/assets/social_preview.png" alt="Automatic Video Generator Banner" width="100%" />
 </p>
 
+<p align="center">
+  <img src="public/assets/15sec_demo.gif" alt="Automatic Video Generator Demo Teaser" width="100%" />
+</p>
+
 ---
 
 ## 🌟 What is Automatic Video Generator?
