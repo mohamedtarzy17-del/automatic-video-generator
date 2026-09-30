@@ -193,7 +193,10 @@ async function generateManifest() {
     method: 'POST',
     headers: {'Content-Type': 'application/json', Authorization: `Bearer ${key}`},
     body: JSON.stringify({
-      model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+      // llama-3.3-70b-versatile was retired by Groq on 2026-08-16. Override with the GROQ_MODEL env var if needed.
+      model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b',
+      reasoning_effort: process.env.GROQ_REASONING_EFFORT || 'low',
+      max_completion_tokens: 8192,
       temperature: 0.6,
       response_format: {type: 'json_object'},
       messages: [{role: 'system', content: system}, {role: 'user', content: `Topic: ${TOPIC}`}],
