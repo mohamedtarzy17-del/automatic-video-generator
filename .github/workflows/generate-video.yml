@@ -4,9 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       topic:
-        description: 'موضوع الفيديو (مثال: قصة نجاح شركة أبل)'
+        description: 'موضوع الفيديو'
         required: true
-        default: 'قصة صعود وتراجع شركة نوكيا'
 
 jobs:
   generate-and-render:
