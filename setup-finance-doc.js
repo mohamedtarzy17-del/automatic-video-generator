@@ -2,10 +2,27 @@ const path = require('path');
 const fs = require('fs');
 
 const root = process.cwd();
-const TOPIC = process.env.VIDEO_TOPIC || 'Financial News';
-const DURATION = Number(process.env.VIDEO_DURATION) || 30;
-const LANGUAGE = process.env.VIDEO_LANGUAGE || 'English';
-const STYLE = process.env.VIDEO_STYLE || 'Vox Financial';
+
+// ---- Inputs (from GitHub Actions env)
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
+const RAW_TOPIC = (process.env.VIDEO_TOPIC || '').trim() || 'Financial News';
+// The web UI appends "[Duration: 30s | Voiceover: Arabic | Style: ...]" to the topic; split it off.
+const META = /\[Duration:\s*(\d+)s\s*\|\s*Voiceover:\s*(Arabic|English)\s*\|\s*Style:\s*([^\]]+)\]\s*$/i.exec(RAW_TOPIC);
+const TOPIC = ((META ? RAW_TOPIC.slice(0, META.index) : RAW_TOPIC).trim()) || 'Financial News';
+
+const DURATION = Math.min(90, Math.max(10, Number(process.env.VIDEO_DURATION) || (META ? Number(META[1]) : 30)));
+
+const langEnv = (process.env.VIDEO_LANGUAGE || '').trim().toLowerCase();
+const LANGUAGE =
+  langEnv === 'en' || langEnv === 'english' ? 'English'
+  : langEnv === 'ar' || langEnv === 'arabic' ? 'Arabic'
+  : META ? (META[2][0].toLowerCase() === 'a' ? 'Arabic' : 'English')
+  : (process.env.VIDEO_LANGUAGE || '').trim() || 'English';
+
+const STYLE = (process.env.VIDEO_STYLE || (META ? META[3] : 'Vox Financial')).trim();
+
+console.log(`Topic: ${TOPIC}\nDuration: ${DURATION}s | Language: ${LANGUAGE} | Style: ${STYLE}`);
 
 // ---- Generate the manifest for VIDEO_TOPIC with Groq and write out/props.json
 const SCENE_TYPES = ['intro', 'headline', 'bar-chart', 'line-chart', 'ticker', 'stat', 'comparison', 'quote', 'outro'];
@@ -23,6 +40,13 @@ const pick = (o, ...keys) => {
   return '';
 };
 const tone = (v) => (TONES.includes(v) ? v : undefined);
+
+// Removes Markdown link wrappers if a URL was pasted as "[url](url)".
+const cleanUrl = (u) => {
+  const s = String(u).trim();
+  const md = /^\[([^\]]*)\]\(([^)]*)\)$/.exec(s);
+  return (md ? md[2] || md[1] : s).trim();
+};
 
 // Returns a valid scene (filling safe defaults) or null if the scene is unusable.
 function sanitizeScene(sc, i, m) {
@@ -192,8 +216,12 @@ function buildSystemPrompt(count) {
   ].join('\n');
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Marks errors worth retrying without bothering the model (network, rate limit, server errors).
+class TransientError extends Error {}
+
 async function callGroq(key, model, messages, attempt) {
-  const isGptOss = /gpt-oss/i.test(model);
   const body = {
     model,
     max_completion_tokens: 8192,
@@ -202,28 +230,43 @@ async function callGroq(key, model, messages, attempt) {
     messages,
   };
   // reasoning_effort is only accepted by reasoning models (gpt-oss); keep it low to save tokens.
-  if (isGptOss) body.reasoning_effort = process.env.GROQ_REASONING_EFFORT || 'low';
+  if (/gpt-oss/i.test(model)) body.reasoning_effort = process.env.GROQ_REASONING_EFFORT || 'low';
 
-  const res = await fetch('[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json', Authorization: `Bearer ${key}`},
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`Groq API ${res.status} (${model}): ${(await res.text()).slice(0, 300)}`);
+  let res;
+  try {
+    res = await fetch(cleanUrl(GROQ_URL), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', Authorization: `Bearer ${key}`},
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(60000),
+    });
+  } catch (e) {
+    throw new TransientError(`Network error calling Groq (${model}): ${e.message}`);
+  }
+
+  if (!res.ok) {
+    const text = (await res.text()).slice(0, 300);
+    const msg = `Groq API ${res.status} (${model}): ${text}`;
+    if (res.status === 429 || res.status >= 500) throw new TransientError(msg);
+    throw new Error(msg); // 400/401/403/404: retrying the same request will not help
+  }
+
   const data = await res.json();
-  const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-  if (!content) throw new Error(`Groq returned an empty response (${model}).`);
+  const choice = data && data.choices && data.choices[0];
+  const content = choice && choice.message && choice.message.content;
+  if (!content) throw new Error(`Groq returned an empty response (${model}, finish_reason: ${choice && choice.finish_reason}).`);
+  if (choice.finish_reason === 'length') throw new Error(`Response was cut off (max tokens reached) on ${model}.`);
   return content;
 }
 
 async function generateManifest() {
-  const key = process.env.GROQ_API_KEY;
+  const key = (process.env.GROQ_API_KEY || '').trim();
   if (!key) throw new Error('GROQ_API_KEY is missing. Add it as a repository secret.');
   const count = Math.min(12, Math.max(3, Math.round(DURATION / 5)));
   const system = buildSystemPrompt(count);
 
   // GROQ_MODEL overrides the first choice; the rest are fallbacks if a model is retired or errors out.
-  const models = [process.env.GROQ_MODEL, 'openai/gpt-oss-120b', 'openai/gpt-oss-20b']
+  const models = [(process.env.GROQ_MODEL || '').trim(), 'openai/gpt-oss-120b', 'openai/gpt-oss-20b']
     .filter(Boolean)
     .filter((m, i, arr) => arr.indexOf(m) === i);
 
@@ -236,19 +279,24 @@ async function generateManifest() {
   const MAX_ATTEMPTS = 4;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const model = models[Math.min(attempt, models.length - 1)];
+    let content = '';
     try {
       console.log(`Groq attempt ${attempt + 1}/${MAX_ATTEMPTS} with ${model}`);
-      const content = await callGroq(key, model, messages, attempt);
-      const parsed = extractJson(content);
-      return normalizeManifest(parsed);
+      content = await callGroq(key, model, messages, attempt);
+      return normalizeManifest(extractJson(content));
     } catch (err) {
       lastErr = err;
       console.warn(`Attempt ${attempt + 1} failed: ${err.message}`);
-      // Retry with feedback so the model can correct itself.
-      messages.push({
-        role: 'user',
-        content: `Your previous reply was rejected: ${err.message}. Reply again with ONE complete JSON object that follows the schema exactly.`,
-      });
+      if (err instanceof TransientError) {
+        await sleep(2000 * (attempt + 1)); // back off, keep the conversation unchanged
+      } else if (content) {
+        // The model answered but the JSON/schema was bad: show it what went wrong.
+        messages.push({role: 'assistant', content: content.slice(0, 4000)});
+        messages.push({
+          role: 'user',
+          content: `Your previous reply was rejected: ${err.message}. Reply again with ONE complete JSON object that follows the schema exactly.`,
+        });
+      }
     }
   }
   throw new Error(`All ${MAX_ATTEMPTS} attempts failed. Last error: ${lastErr && lastErr.message}`);
