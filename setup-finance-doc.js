@@ -18,6 +18,22 @@ for (const a of process.argv.slice(2)) {
   else if (a === '--push') { doGit = true; doPush = true; }
   else root = a;
 }
+// ---- Video topic (from GitHub Actions: VIDEO_TOPIC). No fallback: an empty topic must fail the run.
+const RAW_TOPIC = (process.env.VIDEO_TOPIC || '').trim();
+if (!RAW_TOPIC) {
+  throw new Error('VIDEO_TOPIC is empty or missing. Pass the topic input to the workflow; refusing to fall back to a default topic.');
+}
+// The web UI appends "[Duration: 30s | Voiceover: Arabic | Style: ...]" to the topic; split it off.
+const META = /\[Duration:\s*(\d+)s\s*\|\s*Voiceover:\s*(Arabic|English)\s*\|\s*Style:\s*([^\]]+)\]\s*$/i.exec(RAW_TOPIC);
+const TOPIC = (META ? RAW_TOPIC.slice(0, META.index) : RAW_TOPIC).trim();
+if (!TOPIC) throw new Error('VIDEO_TOPIC contains no topic text.');
+const DURATION = Math.min(90, Math.max(10, Number(process.env.VIDEO_DURATION) || (META ? Number(META[1]) : 30)));
+const langEnv = (process.env.VIDEO_LANGUAGE || '').toLowerCase();
+const LANGUAGE = langEnv === 'en' || langEnv === 'english' ? 'English'
+  : langEnv === 'ar' || langEnv === 'arabic' ? 'Arabic'
+  : META ? (META[2][0].toLowerCase() === 'a' ? 'Arabic' : 'English') : 'English';
+const STYLE = (process.env.VIDEO_STYLE || (META ? META[3] : 'Vox-Style Financial Documentary')).trim();
+console.log(`Topic: ${TOPIC}\nDuration: ${DURATION}s | Language: ${LANGUAGE} | Style: ${STYLE}`);
 const BRANCH = 'feature/vertical-financial-documentary-engine';
 const rootTsx = path.join(root, 'src', 'Root.tsx');
 if (!fs.existsSync(rootTsx)) {
@@ -121,3 +137,82 @@ if (doGit) {
   if (doPush) run(`git push -u origin ${BRANCH}`);
   else console.log(`Committed on ${BRANCH}. Push with: git push -u origin ${BRANCH}`);
 }
+
+// ---- Generate the manifest for VIDEO_TOPIC with Groq and write out/props.json
+const SCENE_TYPES = ['intro', 'headline', 'bar-chart', 'line-chart', 'ticker', 'stat', 'comparison', 'quote', 'outro'];
+const isStr = (v) => typeof v === 'string' && v.trim().length > 0;
+const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+const REQUIRED = {
+  'intro': (s) => isStr(s.title),
+  'headline': (s) => isStr(s.headline),
+  'bar-chart': (s) => isStr(s.title) && Array.isArray(s.data) && s.data.length > 0 && s.data.every((d) => isStr(d.label) && isNum(d.value)),
+  'line-chart': (s) => isStr(s.title) && Array.isArray(s.values) && s.values.length >= 2 && s.values.every(isNum) && Array.isArray(s.labels) && s.labels.length === s.values.length,
+  'ticker': (s) => Array.isArray(s.items) && s.items.length > 0 && s.items.every((i) => isStr(i.symbol) && isNum(i.price) && isNum(i.changePct)),
+  'stat': (s) => isStr(s.label) && isNum(s.value),
+  'comparison': (s) => s.left && s.right && isStr(s.left.label) && isStr(s.left.value) && isStr(s.right.label) && isStr(s.right.value),
+  'quote': (s) => isStr(s.quote) && isStr(s.author),
+  'outro': (s) => isStr(s.title),
+};
+
+function normalizeManifest(m) {
+  if (!m || !Array.isArray(m.scenes) || m.scenes.length < 2) throw new Error('AI response has no usable "scenes" array.');
+  const scenes = m.scenes.map((sc, i) => {
+    if (!SCENE_TYPES.includes(sc.type)) throw new Error(`Scene ${i + 1}: unknown type "${sc.type}".`);
+    if (!REQUIRED[sc.type](sc)) throw new Error(`Scene ${i + 1} (${sc.type}): missing or invalid fields.`);
+    return {...sc, id: `s${i + 1}`, durationSec: isNum(sc.durationSec) && sc.durationSec > 0 ? sc.durationSec : 5};
+  });
+  // Scale scene lengths so the video lasts the requested duration.
+  const sum = scenes.reduce((a, sc) => a + sc.durationSec, 0);
+  scenes.forEach((sc) => { sc.durationSec = Math.max(1.5, Math.round((sc.durationSec * DURATION / sum) * 10) / 10); });
+  return {title: isStr(m.title) ? m.title : TOPIC, brand: isStr(m.brand) ? m.brand : undefined, captions: true, scenes};
+}
+
+async function generateManifest() {
+  const key = process.env.GROQ_API_KEY;
+  if (!key) throw new Error('GROQ_API_KEY is missing. Add it as a repository secret.');
+  const count = Math.min(12, Math.max(3, Math.round(DURATION / 5)));
+  const system = [
+    'You write scene manifests for a vertical financial documentary video. Reply with ONE JSON object only.',
+    'Shape: {"title": string, "brand": string, "scenes": Scene[]}. Every scene has "type", "durationSec" (number) and "caption" (the narration line).',
+    'Allowed scene types and their fields:',
+    '- intro: title, subtitle?',
+    '- headline: headline, kicker?, body?, tone? ("neutral"|"gain"|"loss")',
+    '- bar-chart: title, data:[{label,value}], valuePrefix?, valueSuffix?, source?',
+    '- line-chart: title, labels:string[], values:number[] (same length, at least 2), valuePrefix?, valueSuffix?, source?',
+    '- ticker: title?, items:[{symbol,name?,price,changePct}]',
+    '- stat: label, value (number), prefix?, suffix?, decimals?, note?, tone?',
+    '- comparison: title?, left:{label,value,note?}, right:{label,value,note?} (value is a string)',
+    '- quote: quote, author, role?',
+    '- outro: title, cta?',
+    `Use exactly ${count} scenes: first is "intro", last is "outro". Durations must add up to about ${DURATION} seconds.`,
+    `Write ALL on-screen text and captions in ${LANGUAGE}. Visual style: ${STYLE}.`,
+    'Use only well-known facts and round figures. If unsure of a number, do not invent precision; say it is approximate in "source".',
+  ].join('\n');
+
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', Authorization: `Bearer ${key}`},
+    body: JSON.stringify({
+      model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+      temperature: 0.6,
+      response_format: {type: 'json_object'},
+      messages: [{role: 'system', content: system}, {role: 'user', content: `Topic: ${TOPIC}`}],
+    }),
+  });
+  if (!res.ok) throw new Error(`Groq API ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  const data = await res.json();
+  const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+  if (!content) throw new Error('Groq returned an empty response.');
+  let parsed;
+  try { parsed = JSON.parse(content); } catch (e) { throw new Error('Groq did not return valid JSON: ' + content.slice(0, 200)); }
+  return normalizeManifest(parsed);
+}
+
+generateManifest()
+  .then((manifest) => {
+    const outDir = path.join(root, 'out');
+    fs.mkdirSync(outDir, {recursive: true});
+    fs.writeFileSync(path.join(outDir, 'props.json'), JSON.stringify({manifest}, null, 2), 'utf8');
+    console.log(`Wrote out/props.json for "${manifest.title}" (${manifest.scenes.length} scenes).`);
+  })
+  .catch((err) => { console.error('Generation failed: ' + err.message); process.exit(1); });
