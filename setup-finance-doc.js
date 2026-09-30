@@ -1,214 +1,257 @@
-#!/usr/bin/env node
-// Vertical Financial Documentary Engine - setup (Node, cross-platform)
-//
-//   node setup-finance-doc.js [path-to-repo] [--git] [--push]
-//
-//   (no flags)  write src/finance-doc/* and patch src/Root.tsx
-//   --git       also create branch feature/vertical-financial-documentary-engine and commit
-//   --push      same as --git, then push the branch to origin
-const fs = require('fs');
 const path = require('path');
-const {execSync} = require('child_process');
+const fs = require('fs');
 
-let root = '.';
-let doGit = false;
-let doPush = false;
-for (const a of process.argv.slice(2)) {
-  if (a === '--git') doGit = true;
-  else if (a === '--push') { doGit = true; doPush = true; }
-  else root = a;
-}
-// ---- Video topic (from GitHub Actions: VIDEO_TOPIC). No fallback: an empty topic must fail the run.
-const RAW_TOPIC = (process.env.VIDEO_TOPIC || '').trim();
-if (!RAW_TOPIC) {
-  throw new Error('VIDEO_TOPIC is empty or missing. Pass the topic input to the workflow; refusing to fall back to a default topic.');
-}
-// The web UI appends "[Duration: 30s | Voiceover: Arabic | Style: ...]" to the topic; split it off.
-const META = /\[Duration:\s*(\d+)s\s*\|\s*Voiceover:\s*(Arabic|English)\s*\|\s*Style:\s*([^\]]+)\]\s*$/i.exec(RAW_TOPIC);
-const TOPIC = (META ? RAW_TOPIC.slice(0, META.index) : RAW_TOPIC).trim();
-if (!TOPIC) throw new Error('VIDEO_TOPIC contains no topic text.');
-const DURATION = Math.min(90, Math.max(10, Number(process.env.VIDEO_DURATION) || (META ? Number(META[1]) : 30)));
-const langEnv = (process.env.VIDEO_LANGUAGE || '').toLowerCase();
-const LANGUAGE = langEnv === 'en' || langEnv === 'english' ? 'English'
-  : langEnv === 'ar' || langEnv === 'arabic' ? 'Arabic'
-  : META ? (META[2][0].toLowerCase() === 'a' ? 'Arabic' : 'English') : 'English';
-const STYLE = (process.env.VIDEO_STYLE || (META ? META[3] : 'Vox-Style Financial Documentary')).trim();
-console.log(`Topic: ${TOPIC}\nDuration: ${DURATION}s | Language: ${LANGUAGE} | Style: ${STYLE}`);
-const BRANCH = 'feature/vertical-financial-documentary-engine';
-const rootTsx = path.join(root, 'src', 'Root.tsx');
-if (!fs.existsSync(rootTsx)) {
-  console.error(`Could not find ${rootTsx} - pass the repo root as the first argument.`);
-  process.exit(1);
-}
-
-const FILES = {
- "src/finance-doc/types.ts": "export type Tone = 'neutral' | 'gain' | 'loss';\n\ntype SceneBase = {\n  id: string;\n  durationSec: number;\n  /** Spoken line, shown as word-by-word captions. */\n  caption?: string;\n  /** Shown as a small \"Source: ...\" line. */\n  source?: string;\n  /** Optional sound effect, path relative to /public (or an http URL). */\n  sfx?: string;\n};\n\nexport type IntroScene = SceneBase & {\n  type: 'intro';\n  title: string;\n  subtitle?: string;\n};\n\nexport type HeadlineScene = SceneBase & {\n  type: 'headline';\n  kicker?: string;\n  headline: string;\n  body?: string;\n  tone?: Tone;\n};\n\nexport type BarDatum = { label: string; value: number; color?: string };\n\nexport type BarChartScene = SceneBase & {\n  type: 'bar-chart';\n  title: string;\n  data: BarDatum[];\n  valuePrefix?: string;\n  valueSuffix?: string;\n};\n\nexport type LineChartScene = SceneBase & {\n  type: 'line-chart';\n  title: string;\n  /** One label per value (empty string to skip a label). */\n  labels: string[];\n  values: number[];\n  valuePrefix?: string;\n  valueSuffix?: string;\n};\n\nexport type TickerItem = {\n  symbol: string;\n  name?: string;\n  price: number;\n  changePct: number;\n};\n\nexport type TickerScene = SceneBase & {\n  type: 'ticker';\n  title?: string;\n  items: TickerItem[];\n  currency?: string;\n};\n\nexport type StatScene = SceneBase & {\n  type: 'stat';\n  label: string;\n  value: number;\n  prefix?: string;\n  suffix?: string;\n  decimals?: number;\n  note?: string;\n  tone?: Tone;\n};\n\nexport type ComparisonSide = {\n  label: string;\n  value: string;\n  note?: string;\n  tone?: Tone;\n};\n\nexport type ComparisonScene = SceneBase & {\n  type: 'comparison';\n  title?: string;\n  left: ComparisonSide;\n  right: ComparisonSide;\n};\n\nexport type QuoteScene = SceneBase & {\n  type: 'quote';\n  quote: string;\n  author: string;\n  role?: string;\n};\n\nexport type OutroScene = SceneBase & {\n  type: 'outro';\n  title: string;\n  cta?: string;\n};\n\nexport type Scene =\n  | IntroScene\n  | HeadlineScene\n  | BarChartScene\n  | LineChartScene\n  | TickerScene\n  | StatScene\n  | ComparisonScene\n  | QuoteScene\n  | OutroScene;\n\nexport type DocumentaryManifest = {\n  title: string;\n  brand?: string;\n  /** Set false to hide captions. Default true. */\n  captions?: boolean;\n  /** Voice-over track, path relative to /public (or an http URL). */\n  narrationSrc?: string;\n  musicSrc?: string;\n  /** 0..1, default 0.12 */\n  musicVolume?: number;\n  scenes: Scene[];\n};\n\nexport type FinancialDocumentaryProps = {\n  manifest: DocumentaryManifest;\n};\n",
- "src/finance-doc/theme.ts": "import type {Tone} from './types';\n\nexport const THEME = {\n  colors: {\n    ground: '#0C1F2E',\n    surface: '#123047',\n    line: '#2A4A63',\n    text: '#EAF1F5',\n    muted: '#8FA7B8',\n    accent: '#F2A93B',\n    gain: '#4CC9A0',\n    loss: '#EF6F4A',\n  },\n  fonts: {\n    // Swap in @remotion/google-fonts here if you want a specific typeface.\n    display: \"'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif\",\n    body: \"'Inter','Helvetica Neue',Arial,sans-serif\",\n  },\n  layout: {width: 1080, height: 1920},\n  // Keeps content clear of the platform UI on Reels / Shorts / TikTok.\n  safe: {top: 200, bottom: 520, side: 72},\n  contentWidth: 1080 - 72 * 2,\n  type: {hero: 124, h1: 96, h2: 64, body: 46, caption: 44, small: 34},\n} as const;\n\nexport const toneColor = (tone?: Tone): string => {\n  if (tone === 'gain') return THEME.colors.gain;\n  if (tone === 'loss') return THEME.colors.loss;\n  return THEME.colors.accent;\n};\n",
- "src/finance-doc/timing.ts": "import type {DocumentaryManifest, Scene} from './types';\n\nexport const FINANCE_DOC_FPS = 30;\n\nexport type TimedScene = {scene: Scene; from: number; duration: number};\n\nexport const timeScenes = (scenes: Scene[], fps: number = FINANCE_DOC_FPS): TimedScene[] => {\n  let cursor = 0;\n  return scenes.map((scene) => {\n    const duration = Math.max(1, Math.round(scene.durationSec * fps));\n    const timed = {scene, from: cursor, duration};\n    cursor += duration;\n    return timed;\n  });\n};\n\nexport const totalFrames = (\n  manifest: DocumentaryManifest,\n  fps: number = FINANCE_DOC_FPS,\n): number => {\n  const sum = timeScenes(manifest.scenes, fps).reduce((acc, t) => acc + t.duration, 0);\n  return Math.max(1, sum);\n};\n",
- "src/finance-doc/manifest.ts": "import {THEME} from './theme';\nimport type {DocumentaryManifest, FinancialDocumentaryProps} from './types';\n\n// Future value of a fixed monthly deposit, compounded monthly.\nconst futureValue = (monthly: number, annualRate: number, years: number): number => {\n  const r = annualRate / 12;\n  const n = years * 12;\n  return monthly * ((Math.pow(1 + r, n) - 1) / r);\n};\n\nconst MONTHLY = 500;\nconst RATE = 0.07;\nconst years = [0, 5, 10, 15, 20, 25, 30];\nconst curve = years.map((y) => (y === 0 ? 0 : Math.round(futureValue(MONTHLY, RATE, y))));\nconst final30 = futureValue(MONTHLY, RATE, 30);\nconst deposits30 = MONTHLY * 12 * 30;\nconst growthShare = ((final30 - deposits30) / final30) * 100;\n\nconst compact = (v: number) =>\n  v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M` : `$${Math.round(v / 1000)}K`;\n\n/**\n * Illustrative sample: the arithmetic of compounding (not market data).\n * Replace with your own scenes.\n */\nexport const sampleManifest: DocumentaryManifest = {\n  title: 'The quiet math of compounding',\n  brand: 'Money, explained',\n  captions: true,\n  scenes: [\n    {\n      id: 'intro',\n      type: 'intro',\n      durationSec: 4,\n      title: 'The quiet math of compounding',\n      subtitle: 'A 45-second explainer',\n      caption: 'Most wealth is built slowly, then all at once.',\n    },\n    {\n      id: 'headline',\n      type: 'headline',\n      durationSec: 6,\n      kicker: 'The idea',\n      headline: 'Time does most of the work',\n      body: 'A modest monthly deposit becomes a large number when it has decades to grow.',\n      tone: 'neutral',\n      caption: 'A small monthly deposit needs time far more than it needs size.',\n    },\n    {\n      id: 'line',\n      type: 'line-chart',\n      durationSec: 9,\n      title: `$${MONTHLY} a month at ${RATE * 100}% a year`,\n      labels: years.map((y) => `Yr ${y}`),\n      values: curve,\n      valuePrefix: '$',\n      caption: 'Put away five hundred dollars a month and the curve bends upward every year.',\n      source: 'Illustrative calculation, monthly compounding',\n    },\n    {\n      id: 'stat',\n      type: 'stat',\n      durationSec: 6,\n      label: 'After 30 years, the share of the balance that is growth, not deposits',\n      value: Number(growthShare.toFixed(1)),\n      suffix: '%',\n      decimals: 1,\n      tone: 'gain',\n      note: `You deposit ${compact(deposits30)}. You end with about ${compact(final30)}.`,\n      caption: 'Most of the final balance never came from your paycheck.',\n    },\n    {\n      id: 'bars',\n      type: 'bar-chart',\n      durationSec: 8,\n      title: 'Same deposit, different start age (to age 65)',\n      valuePrefix: '$',\n      data: [\n        {label: 'Start at 25', value: Math.round(futureValue(MONTHLY, RATE, 40)), color: THEME.colors.gain},\n        {label: 'Start at 35', value: Math.round(futureValue(MONTHLY, RATE, 30))},\n        {label: 'Start at 45', value: Math.round(futureValue(MONTHLY, RATE, 20))},\n      ],\n      caption: 'Starting ten years earlier does not add ten years of growth. It multiplies it.',\n      source: 'Illustrative calculation, 7% a year',\n    },\n    {\n      id: 'compare',\n      type: 'comparison',\n      durationSec: 7,\n      title: 'Thirty years, side by side',\n      left: {label: 'What you deposit', value: compact(deposits30), note: 'Out of pocket'},\n      right: {\n        label: 'What you end with',\n        value: compact(final30),\n        note: 'After compounding',\n        tone: 'gain',\n      },\n      caption: 'The gap between those two numbers is the whole story.',\n    },\n    {\n      id: 'outro',\n      type: 'outro',\n      durationSec: 5,\n      title: 'Start early. Stay consistent.',\n      cta: 'Follow for more money explainers',\n      caption: 'The best time to start was years ago. The next best is this month.',\n    },\n  ],\n};\n\nexport const defaultFinancialDocProps: FinancialDocumentaryProps = {manifest: sampleManifest};\n",
- "src/finance-doc/index.ts": "export {FinancialDocumentary, calculateFinancialDocMetadata} from './FinancialDocumentary';\nexport {defaultFinancialDocProps, sampleManifest} from './manifest';\nexport {FINANCE_DOC_FPS, timeScenes, totalFrames} from './timing';\nexport * from './types';\n",
- "src/finance-doc/FinancialDocumentary.tsx": "import React, {useMemo} from 'react';\nimport {AbsoluteFill, Sequence, useVideoConfig} from 'remotion';\nimport type {CalculateMetadataFunction} from 'remotion';\nimport {AudioLayer} from './audio/AudioLayer';\nimport {Background} from './components/Background';\nimport {ProgressBar} from './components/ProgressBar';\nimport {SceneFrame} from './components/SceneFrame';\nimport {SceneRenderer} from './components/SceneRenderer';\nimport {FINANCE_DOC_FPS, timeScenes, totalFrames} from './timing';\nimport type {FinancialDocumentaryProps} from './types';\n\n/** Use with <Composition calculateMetadata={...} /> so duration follows the manifest. */\nexport const calculateFinancialDocMetadata: CalculateMetadataFunction<\n  FinancialDocumentaryProps\n> = ({props}) => ({\n  durationInFrames: totalFrames(props.manifest, FINANCE_DOC_FPS),\n});\n\nexport const FinancialDocumentary: React.FC<FinancialDocumentaryProps> = ({manifest}) => {\n  const {fps} = useVideoConfig();\n  const timed = useMemo(() => timeScenes(manifest.scenes, fps), [manifest.scenes, fps]);\n\n  return (\n    <AbsoluteFill>\n      <Background />\n      {timed.map((t) => (\n        <Sequence key={t.scene.id} from={t.from} durationInFrames={t.duration}>\n          <SceneFrame>\n            <SceneRenderer\n              scene={t.scene}\n              brand={manifest.brand}\n              showCaptions={manifest.captions !== false}\n            />\n          </SceneFrame>\n        </Sequence>\n      ))}\n      <ProgressBar />\n      <AudioLayer manifest={manifest} timed={timed} />\n    </AbsoluteFill>\n  );\n};\n",
- "src/finance-doc/utils/easing.ts": "import {Easing, interpolate} from 'remotion';\n\nexport const easeOut = Easing.bezier(0.16, 1, 0.3, 1);\nexport const easeInOut = Easing.bezier(0.65, 0, 0.35, 1);\n\nexport const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));\n\n/** 0 -> 1 over `duration` frames starting at `start`, clamped on both ends. */\nexport const ramp = (\n  frame: number,\n  start: number,\n  duration: number,\n  easing: (t: number) => number = easeOut,\n): number =>\n  interpolate(frame, [start, start + Math.max(1, duration)], [0, 1], {\n    extrapolateLeft: 'clamp',\n    extrapolateRight: 'clamp',\n    easing,\n  });\n",
- "src/finance-doc/utils/format.ts": "export const formatNumber = (value: number, decimals = 0): string =>\n  value.toLocaleString('en-US', {\n    minimumFractionDigits: decimals,\n    maximumFractionDigits: decimals,\n  });\n\nexport const formatCompact = (value: number): string => {\n  const abs = Math.abs(value);\n  if (abs >= 1e12) return `${(value / 1e12).toFixed(1)}T`;\n  if (abs >= 1e9) return `${(value / 1e9).toFixed(1)}B`;\n  if (abs >= 1e6) return `${(value / 1e6).toFixed(1)}M`;\n  if (abs >= 1e3) return `${(value / 1e3).toFixed(0)}K`;\n  return value.toFixed(0);\n};\n\nexport const formatPct = (value: number, decimals = 1): string =>\n  `${value > 0 ? '+' : ''}${value.toFixed(decimals)}%`;\n",
- "src/finance-doc/utils/chartMath.ts": "export type Pt = {x: number; y: number};\nexport type Pad = {l: number; r: number; t: number; b: number};\n\nexport const linearScale =\n  (d0: number, d1: number, r0: number, r1: number) =>\n  (v: number): number =>\n    d1 === d0 ? (r0 + r1) / 2 : r0 + ((v - d0) / (d1 - d0)) * (r1 - r0);\n\n/** Maps values to SVG points inside a w x h box, with 8% headroom. */\nexport const toPoints = (values: number[], w: number, h: number, pad: Pad): Pt[] => {\n  const min = Math.min(...values);\n  const max = Math.max(...values);\n  const lo = min - (max - min) * 0.08;\n  const hi = max + (max - min) * 0.08;\n  const x = linearScale(0, Math.max(1, values.length - 1), pad.l, w - pad.r);\n  const y = linearScale(lo, hi, h - pad.b, pad.t);\n  return values.map((v, i) => ({x: x(i), y: y(v)}));\n};\n\nexport const pathFromPoints = (pts: Pt[]): string =>\n  pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ');\n\nexport const polylineLength = (pts: Pt[]): number => {\n  let total = 0;\n  for (let i = 1; i < pts.length; i++) {\n    total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);\n  }\n  return total;\n};\n\n/** Point at a given arc length along the polyline, plus a fractional data index. */\nexport const pointAtLength = (pts: Pt[], length: number): {x: number; y: number; index: number} => {\n  let remaining = Math.max(0, length);\n  for (let i = 1; i < pts.length; i++) {\n    const a = pts[i - 1];\n    const b = pts[i];\n    const seg = Math.hypot(b.x - a.x, b.y - a.y);\n    if (remaining <= seg || i === pts.length - 1) {\n      const f = seg === 0 ? 1 : Math.min(1, remaining / seg);\n      return {x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, index: i - 1 + f};\n    }\n    remaining -= seg;\n  }\n  return {x: pts[0].x, y: pts[0].y, index: 0};\n};\n\nexport const valueAtIndex = (values: number[], index: number): number => {\n  const i = Math.min(values.length - 2, Math.max(0, Math.floor(index)));\n  const f = index - i;\n  return values[i] + (values[i + 1] - values[i]) * f;\n};\n",
- "src/finance-doc/hooks/useSceneProgress.ts": "import {spring, useCurrentFrame, useVideoConfig} from 'remotion';\n\n/** Frame info local to the current <Sequence>, plus 0..1 progress. */\nexport const useSceneProgress = () => {\n  const frame = useCurrentFrame();\n  const {fps, durationInFrames} = useVideoConfig();\n  const progress = durationInFrames > 1 ? frame / (durationInFrames - 1) : 1;\n  return {frame, fps, durationInFrames, progress};\n};\n\n/** Smooth 0 -> 1 entrance, optionally delayed by `delayFrames`. */\nexport const useEnter = (delayFrames = 0): number => {\n  const frame = useCurrentFrame();\n  const {fps} = useVideoConfig();\n  return spring({\n    frame: Math.max(0, frame - delayFrames),\n    fps,\n    config: {damping: 200},\n    durationInFrames: Math.round(fps * 0.9),\n  });\n};\n",
- "src/finance-doc/components/Background.tsx": "import React from 'react';\nimport {AbsoluteFill, useCurrentFrame} from 'remotion';\nimport {THEME} from '../theme';\n\nexport const Background: React.FC = () => {\n  const frame = useCurrentFrame();\n  const drift = Math.sin(frame / 120) * 6;\n\n  return (\n    <AbsoluteFill style={{background: THEME.colors.ground}}>\n      <AbsoluteFill\n        style={{\n          background: `radial-gradient(1100px 900px at ${50 + drift}% 22%, ${THEME.colors.surface} 0%, transparent 70%)`,\n        }}\n      />\n      {/* chart-paper rules: quiet, and they read as \"finance\" without decoration */}\n      <AbsoluteFill\n        style={{\n          backgroundImage: `repeating-linear-gradient(0deg, ${THEME.colors.line} 0px, ${THEME.colors.line} 1px, transparent 1px, transparent 160px)`,\n          opacity: 0.22,\n        }}\n      />\n    </AbsoluteFill>\n  );\n};\n",
- "src/finance-doc/components/SceneFrame.tsx": "import React from 'react';\nimport {AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';\n\n/** Fades a scene in and out at its Sequence boundaries. */\nexport const SceneFrame: React.FC<{children: React.ReactNode; fadeFrames?: number}> = ({\n  children,\n  fadeFrames = 8,\n}) => {\n  const frame = useCurrentFrame();\n  const {durationInFrames} = useVideoConfig();\n  // Guarantees 0 < f < durationInFrames - f, so the input range is strictly increasing.\n  const f = Math.min(fadeFrames, Math.floor((durationInFrames - 1) / 2));\n  const opacity =\n    f <= 0\n      ? 1\n      : interpolate(frame, [0, f, durationInFrames - f, durationInFrames], [0, 1, 1, 0], {\n          extrapolateLeft: 'clamp',\n          extrapolateRight: 'clamp',\n        });\n\n  return <AbsoluteFill style={{opacity}}>{children}</AbsoluteFill>;\n};\n",
- "src/finance-doc/components/SceneRenderer.tsx": "import React from 'react';\nimport {AbsoluteFill} from 'remotion';\nimport {THEME} from '../theme';\nimport type {Scene} from '../types';\nimport {AnimatedBarChart} from './AnimatedBarChart';\nimport {AnimatedLineChart} from './AnimatedLineChart';\nimport {CaptionTrack} from './CaptionTrack';\nimport {ComparisonScene} from './ComparisonScene';\nimport {HeadlineCard} from './HeadlineCard';\nimport {IntroScene} from './IntroScene';\nimport {LowerThird} from './LowerThird';\nimport {OutroScene} from './OutroScene';\nimport {QuoteScene} from './QuoteScene';\nimport {StatCallout} from './StatCallout';\nimport {Ticker} from './Ticker';\n\nconst renderBody = (scene: Scene, brand?: string): React.ReactNode => {\n  switch (scene.type) {\n    case 'intro':\n      return <IntroScene scene={scene} brand={brand} />;\n    case 'headline':\n      return <HeadlineCard scene={scene} />;\n    case 'bar-chart':\n      return <AnimatedBarChart scene={scene} />;\n    case 'line-chart':\n      return <AnimatedLineChart scene={scene} />;\n    case 'ticker':\n      return <Ticker scene={scene} />;\n    case 'stat':\n      return <StatCallout scene={scene} />;\n    case 'comparison':\n      return <ComparisonScene scene={scene} />;\n    case 'quote':\n      return <QuoteScene scene={scene} />;\n    case 'outro':\n      return <OutroScene scene={scene} brand={brand} />;\n    default: {\n      const unreachable: never = scene;\n      throw new Error(`Unknown scene type: ${JSON.stringify(unreachable)}`);\n    }\n  }\n};\n\nexport const SceneRenderer: React.FC<{\n  scene: Scene;\n  showCaptions: boolean;\n  brand?: string;\n}> = ({scene, showCaptions, brand}) => (\n  <AbsoluteFill style={{fontFamily: THEME.fonts.body, color: THEME.colors.text}}>\n    <div\n      style={{\n        position: 'absolute',\n        top: THEME.safe.top,\n        bottom: THEME.safe.bottom,\n        left: THEME.safe.side,\n        right: THEME.safe.side,\n      }}\n    >\n      {renderBody(scene, brand)}\n    </div>\n    {scene.source ? <LowerThird source={scene.source} /> : null}\n    {showCaptions && scene.caption ? <CaptionTrack text={scene.caption} /> : null}\n  </AbsoluteFill>\n);\n",
- "src/finance-doc/components/HeadlineCard.tsx": "import React from 'react';\nimport {THEME, toneColor} from '../theme';\nimport type {HeadlineScene} from '../types';\nimport {useEnter} from '../hooks/useSceneProgress';\n\nexport const HeadlineCard: React.FC<{scene: HeadlineScene}> = ({scene}) => {\n  const enter = useEnter(0);\n  const enterBody = useEnter(12);\n  const color = toneColor(scene.tone);\n\n  return (\n    <div style={{height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center'}}>\n      {scene.kicker ? (\n        <div\n          style={{\n            fontSize: THEME.type.small,\n            color: THEME.colors.muted,\n            marginBottom: 28,\n            opacity: enter,\n          }}\n        >\n          {scene.kicker}\n        </div>\n      ) : null}\n      <div style={{display: 'flex', gap: 36}}>\n        {/* The bar's colour carries the tone: gain, loss, or neutral. */}\n        <div\n          style={{\n            width: 10,\n            borderRadius: 5,\n            background: color,\n            transform: `scaleY(${enter})`,\n            transformOrigin: 'top',\n          }}\n        />\n        <div>\n          <div\n            style={{\n              fontFamily: THEME.fonts.display,\n              fontWeight: 700,\n              fontSize: THEME.type.h1,\n              lineHeight: 1.06,\n              opacity: enter,\n              transform: `translateY(${(1 - enter) * 40}px)`,\n            }}\n          >\n            {scene.headline}\n          </div>\n          {scene.body ? (\n            <div\n              style={{\n                marginTop: 36,\n                fontSize: THEME.type.body,\n                lineHeight: 1.4,\n                color: THEME.colors.muted,\n                opacity: enterBody,\n                transform: `translateY(${(1 - enterBody) * 24}px)`,\n              }}\n            >\n              {scene.body}\n            </div>\n          ) : null}\n        </div>\n      </div>\n    </div>\n  );\n};\n",
- "src/finance-doc/components/AnimatedBarChart.tsx": "import React from 'react';\nimport {useCurrentFrame, useVideoConfig} from 'remotion';\nimport {THEME} from '../theme';\nimport type {BarChartScene} from '../types';\nimport {ramp} from '../utils/easing';\nimport {formatCompact} from '../utils/format';\n\nexport const AnimatedBarChart: React.FC<{scene: BarChartScene}> = ({scene}) => {\n  const frame = useCurrentFrame();\n  const {fps} = useVideoConfig();\n  const max = Math.max(1e-9, ...scene.data.map((d) => d.value));\n  const prefix = scene.valuePrefix ?? '';\n  const suffix = scene.valueSuffix ?? '';\n  const titleIn = ramp(frame, 0, fps * 0.6);\n\n  return (\n    <div style={{height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 64}}>\n      <div\n        style={{\n          fontFamily: THEME.fonts.display,\n          fontWeight: 700,\n          fontSize: THEME.type.h2,\n          lineHeight: 1.12,\n          opacity: titleIn,\n        }}\n      >\n        {scene.title}\n      </div>\n      <div style={{display: 'flex', flexDirection: 'column', gap: 48}}>\n        {scene.data.map((d, i) => {\n          const start = fps * 0.5 + i * fps * 0.35;\n          const p = ramp(frame, start, fps * 1.3);\n          const width = (d.value / max) * 100 * p;\n          const shown = d.value * p;\n          return (\n            <div key={d.label} style={{opacity: Math.min(1, p * 4)}}>\n              <div\n                style={{\n                  display: 'flex',\n                  justifyContent: 'space-between',\n                  alignItems: 'baseline',\n                  marginBottom: 14,\n                  fontSize: THEME.type.body,\n                }}\n              >\n                <span style={{color: THEME.colors.muted}}>{d.label}</span>\n                <span style={{fontWeight: 700, fontVariantNumeric: 'tabular-nums'}}>\n                  {prefix}\n                  {formatCompact(shown)}\n                  {suffix}\n                </span>\n              </div>\n              <div style={{height: 44, background: THEME.colors.surface, borderRadius: 6}}>\n                <div\n                  style={{\n                    height: '100%',\n                    width: `${width}%`,\n                    background: d.color ?? THEME.colors.accent,\n                    borderRadius: 6,\n                  }}\n                />\n              </div>\n            </div>\n          );\n        })}\n      </div>\n    </div>\n  );\n};\n",
- "src/finance-doc/components/AnimatedLineChart.tsx": "import React from 'react';\nimport {useCurrentFrame, useVideoConfig} from 'remotion';\nimport {THEME} from '../theme';\nimport type {LineChartScene} from '../types';\nimport {\n  pathFromPoints,\n  pointAtLength,\n  polylineLength,\n  toPoints,\n  valueAtIndex,\n} from '../utils/chartMath';\nimport {ramp} from '../utils/easing';\nimport {formatCompact, formatPct} from '../utils/format';\n\nconst W = THEME.contentWidth;\nconst H = 640;\nconst PAD = {l: 16, r: 56, t: 40, b: 56};\n\nexport const AnimatedLineChart: React.FC<{scene: LineChartScene}> = ({scene}) => {\n  const frame = useCurrentFrame();\n  const {fps} = useVideoConfig();\n  const values = scene.values;\n  if (values.length < 2) return null;\n\n  const prefix = scene.valuePrefix ?? '';\n  const suffix = scene.valueSuffix ?? '';\n  const pts = toPoints(values, W, H, PAD);\n  const total = polylineLength(pts);\n  const draw = ramp(frame, fps * 0.6, fps * 2.4);\n  const tip = pointAtLength(pts, total * draw);\n  const current = valueAtIndex(values, tip.index);\n\n  const first = values[0];\n  const last = values[values.length - 1];\n  const color = last >= first ? THEME.colors.gain : THEME.colors.loss;\n  const titleIn = ramp(frame, 0, fps * 0.6);\n\n  const line = pathFromPoints(pts);\n  const baseY = H - PAD.b;\n  const area = `${line} L${pts[pts.length - 1].x.toFixed(2)} ${baseY} L${pts[0].x.toFixed(2)} ${baseY} Z`;\n  const gridYs = [0, 1, 2, 3].map((i) => PAD.t + ((baseY - PAD.t) * i) / 3);\n\n  return (\n    <div style={{height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 40}}>\n      <div\n        style={{\n          fontFamily: THEME.fonts.display,\n          fontWeight: 700,\n          fontSize: THEME.type.h2,\n          lineHeight: 1.12,\n          opacity: titleIn,\n        }}\n      >\n        {scene.title}\n      </div>\n\n      <div style={{display: 'flex', alignItems: 'baseline', gap: 24}}>\n        <span\n          style={{\n            fontSize: 120,\n            fontWeight: 700,\n            color,\n            fontVariantNumeric: 'tabular-nums',\n          }}\n        >\n          {prefix}\n          {formatCompact(current)}\n          {suffix}\n        </span>\n        {first !== 0 ? (\n          <span style={{fontSize: THEME.type.body, color: THEME.colors.muted}}>\n            {formatPct(((current - first) / Math.abs(first)) * 100)}\n          </span>\n        ) : null}\n      </div>\n\n      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{overflow: 'visible'}}>\n        <defs>\n          <clipPath id=\"fd-line-reveal\">\n            <rect x={0} y={0} width={Math.max(0, tip.x)} height={H} />\n          </clipPath>\n        </defs>\n        {gridYs.map((y) => (\n          <line key={y} x1={0} x2={W} y1={y} y2={y} stroke={THEME.colors.line} strokeWidth={1} />\n        ))}\n        <path d={area} fill={color} opacity={0.14} clipPath=\"url(#fd-line-reveal)\" />\n        <path\n          d={line}\n          fill=\"none\"\n          stroke={color}\n          strokeWidth={8}\n          strokeLinecap=\"round\"\n          strokeLinejoin=\"round\"\n          strokeDasharray={total}\n          strokeDashoffset={total - total * draw}\n        />\n        <circle cx={tip.x} cy={tip.y} r={14} fill={color} />\n        {pts.map((p, i) =>\n          scene.labels[i] ? (\n            <text\n              key={i}\n              x={p.x}\n              y={H - 12}\n              fontSize={28}\n              fill={THEME.colors.muted}\n              textAnchor=\"middle\"\n              fontFamily={THEME.fonts.body}\n            >\n              {scene.labels[i]}\n            </text>\n          ) : null,\n        )}\n      </svg>\n    </div>\n  );\n};\n",
- "src/finance-doc/components/Ticker.tsx": "import React from 'react';\nimport {useCurrentFrame, useVideoConfig} from 'remotion';\nimport {THEME} from '../theme';\nimport type {TickerScene} from '../types';\nimport {ramp} from '../utils/easing';\nimport {formatNumber, formatPct} from '../utils/format';\n\nexport const Ticker: React.FC<{scene: TickerScene}> = ({scene}) => {\n  const frame = useCurrentFrame();\n  const {fps} = useVideoConfig();\n  const currency = scene.currency ?? '$';\n\n  return (\n    <div style={{height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 48}}>\n      {scene.title ? (\n        <div\n          style={{\n            fontFamily: THEME.fonts.display,\n            fontWeight: 700,\n            fontSize: THEME.type.h2,\n            lineHeight: 1.12,\n            opacity: ramp(frame, 0, fps * 0.6),\n          }}\n        >\n          {scene.title}\n        </div>\n      ) : null}\n      <div>\n        {scene.items.map((item, i) => {\n          const p = ramp(frame, fps * 0.4 + i * fps * 0.2, fps * 0.7);\n          const up = item.changePct >= 0;\n          const color = up ? THEME.colors.gain : THEME.colors.loss;\n          return (\n            <div\n              key={item.symbol}\n              style={{\n                display: 'flex',\n                justifyContent: 'space-between',\n                alignItems: 'center',\n                padding: '28px 0',\n                borderBottom: `1px solid ${THEME.colors.line}`,\n                opacity: p,\n                transform: `translateX(${(1 - p) * 60}px)`,\n              }}\n            >\n              <div>\n                <div style={{fontSize: 56, fontWeight: 700}}>{item.symbol}</div>\n                {item.name ? (\n                  <div style={{fontSize: THEME.type.small, color: THEME.colors.muted}}>{item.name}</div>\n                ) : null}\n              </div>\n              <div style={{textAlign: 'right', fontVariantNumeric: 'tabular-nums'}}>\n                <div style={{fontSize: 56, fontWeight: 700}}>\n                  {currency}\n                  {formatNumber(item.price, 2)}\n                </div>\n                <div style={{fontSize: THEME.type.body, color}}>\n                  {up ? '▲' : '▼'} {formatPct(item.changePct, 2)}\n                </div>\n              </div>\n            </div>\n          );\n        })}\n      </div>\n    </div>\n  );\n};\n",
- "src/finance-doc/components/StatCallout.tsx": "import React from 'react';\nimport {useCurrentFrame, useVideoConfig} from 'remotion';\nimport {THEME, toneColor} from '../theme';\nimport type {StatScene} from '../types';\nimport {useEnter} from '../hooks/useSceneProgress';\nimport {ramp} from '../utils/easing';\nimport {formatNumber} from '../utils/format';\n\nexport const StatCallout: React.FC<{scene: StatScene}> = ({scene}) => {\n  const frame = useCurrentFrame();\n  const {fps} = useVideoConfig();\n  const enter = useEnter(0);\n  const noteIn = useEnter(Math.round(fps * 2.2));\n  const decimals = scene.decimals ?? 0;\n  const prefix = scene.prefix ?? '';\n  const suffix = scene.suffix ?? '';\n\n  const p = ramp(frame, fps * 0.4, fps * 2);\n  const text = `${prefix}${formatNumber(scene.value * p, decimals)}${suffix}`;\n  // Size from the final string so the number does not jitter while counting.\n  const finalLen = `${prefix}${formatNumber(scene.value, decimals)}${suffix}`.length;\n  const size = Math.min(260, Math.floor(THEME.contentWidth / (finalLen * 0.6)));\n\n  return (\n    <div style={{height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 40}}>\n      <div\n        style={{\n          fontFamily: THEME.fonts.display,\n          fontWeight: 700,\n          fontSize: THEME.type.h2,\n          lineHeight: 1.15,\n          opacity: enter,\n        }}\n      >\n        {scene.label}\n      </div>\n      <div\n        style={{\n          fontSize: size,\n          fontWeight: 700,\n          lineHeight: 1,\n          color: toneColor(scene.tone),\n          fontVariantNumeric: 'tabular-nums',\n        }}\n      >\n        {text}\n      </div>\n      {scene.note ? (\n        <div\n          style={{\n            fontSize: THEME.type.body,\n            lineHeight: 1.4,\n            color: THEME.colors.muted,\n            opacity: noteIn,\n          }}\n        >\n          {scene.note}\n        </div>\n      ) : null}\n    </div>\n  );\n};\n",
- "src/finance-doc/components/LowerThird.tsx": "import React from 'react';\nimport {useCurrentFrame, useVideoConfig} from 'remotion';\nimport {THEME} from '../theme';\nimport {ramp} from '../utils/easing';\n\n/** Source attribution, sits between the content area and the captions. */\nexport const LowerThird: React.FC<{source: string}> = ({source}) => {\n  const frame = useCurrentFrame();\n  const {fps} = useVideoConfig();\n\n  return (\n    <div\n      style={{\n        position: 'absolute',\n        left: THEME.safe.side,\n        right: THEME.safe.side,\n        bottom: 235,\n        fontSize: 30,\n        color: THEME.colors.muted,\n        opacity: ramp(frame, fps * 1, fps * 0.5),\n      }}\n    >\n      Source: {source}\n    </div>\n  );\n};\n",
- "src/finance-doc/components/CaptionTrack.tsx": "import React from 'react';\nimport {interpolate} from 'remotion';\nimport {THEME} from '../theme';\nimport {useSceneProgress} from '../hooks/useSceneProgress';\n\n/** Word-by-word captions, paced across the scene's length. */\nexport const CaptionTrack: React.FC<{text: string}> = ({text}) => {\n  const {frame, durationInFrames} = useSceneProgress();\n  const words = text.trim().split(/\\s+/);\n  const t = interpolate(frame, [durationInFrames * 0.06, durationInFrames * 0.9], [0, words.length], {\n    extrapolateLeft: 'clamp',\n    extrapolateRight: 'clamp',\n  });\n  const current = Math.floor(t);\n\n  return (\n    <div\n      style={{\n        position: 'absolute',\n        left: THEME.safe.side,\n        right: THEME.safe.side,\n        bottom: 290,\n        minHeight: 190,\n        fontSize: THEME.type.caption,\n        fontWeight: 600,\n        lineHeight: 1.3,\n        fontFamily: THEME.fonts.body,\n      }}\n    >\n      {words.map((w, i) => {\n        const spoken = i < current;\n        const now = i === current && t < words.length;\n        return (\n          <span\n            key={`${w}-${i}`}\n            style={{\n              color: now ? THEME.colors.accent : THEME.colors.text,\n              opacity: spoken || now ? 1 : 0.35,\n              marginRight: 12,\n              display: 'inline-block',\n            }}\n          >\n            {w}\n          </span>\n        );\n      })}\n    </div>\n  );\n};\n",
- "src/finance-doc/components/ProgressBar.tsx": "import React from 'react';\nimport {useCurrentFrame, useVideoConfig} from 'remotion';\nimport {THEME} from '../theme';\n\n/** Whole-video progress. Rendered outside the scene Sequences. */\nexport const ProgressBar: React.FC = () => {\n  const frame = useCurrentFrame();\n  const {durationInFrames} = useVideoConfig();\n  const pct = durationInFrames > 1 ? (frame / (durationInFrames - 1)) * 100 : 100;\n\n  return (\n    <div style={{position: 'absolute', left: 0, right: 0, top: 24, height: 8, background: THEME.colors.line, opacity: 0.6}}>\n      <div style={{height: '100%', width: `${pct}%`, background: THEME.colors.accent}} />\n    </div>\n  );\n};\n",
- "src/finance-doc/components/IntroScene.tsx": "import React from 'react';\nimport {THEME} from '../theme';\nimport type {IntroScene as IntroSceneData} from '../types';\nimport {useEnter} from '../hooks/useSceneProgress';\n\nexport const IntroScene: React.FC<{scene: IntroSceneData; brand?: string}> = ({scene, brand}) => {\n  const enter = useEnter(0);\n  const ruleIn = useEnter(10);\n  const subIn = useEnter(20);\n\n  return (\n    <div style={{height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center'}}>\n      {brand ? (\n        <div style={{fontSize: THEME.type.small, color: THEME.colors.muted, marginBottom: 40, opacity: enter}}>\n          {brand}\n        </div>\n      ) : null}\n      <div\n        style={{\n          fontFamily: THEME.fonts.display,\n          fontWeight: 700,\n          fontSize: THEME.type.hero,\n          lineHeight: 1.04,\n          opacity: enter,\n          transform: `translateY(${(1 - enter) * 50}px)`,\n        }}\n      >\n        {scene.title}\n      </div>\n      <div\n        style={{\n          height: 8,\n          width: 240 * ruleIn,\n          background: THEME.colors.accent,\n          borderRadius: 4,\n          margin: '48px 0',\n        }}\n      />\n      {scene.subtitle ? (\n        <div style={{fontSize: THEME.type.body, color: THEME.colors.muted, opacity: subIn}}>{scene.subtitle}</div>\n      ) : null}\n    </div>\n  );\n};\n",
- "src/finance-doc/components/OutroScene.tsx": "import React from 'react';\nimport {THEME} from '../theme';\nimport type {OutroScene as OutroSceneData} from '../types';\nimport {useEnter} from '../hooks/useSceneProgress';\n\nexport const OutroScene: React.FC<{scene: OutroSceneData; brand?: string}> = ({scene, brand}) => {\n  const enter = useEnter(0);\n  const ctaIn = useEnter(16);\n\n  return (\n    <div style={{height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center'}}>\n      <div\n        style={{\n          fontFamily: THEME.fonts.display,\n          fontWeight: 700,\n          fontSize: THEME.type.h1,\n          lineHeight: 1.08,\n          opacity: enter,\n          transform: `translateY(${(1 - enter) * 40}px)`,\n        }}\n      >\n        {scene.title}\n      </div>\n      {scene.cta ? (\n        <div\n          style={{\n            marginTop: 56,\n            fontSize: THEME.type.body,\n            fontWeight: 700,\n            color: THEME.colors.accent,\n            opacity: ctaIn,\n          }}\n        >\n          {scene.cta}\n        </div>\n      ) : null}\n      {brand ? (\n        <div style={{marginTop: 24, fontSize: THEME.type.small, color: THEME.colors.muted, opacity: ctaIn}}>\n          {brand}\n        </div>\n      ) : null}\n    </div>\n  );\n};\n",
- "src/finance-doc/components/ComparisonScene.tsx": "import React from 'react';\nimport {useCurrentFrame, useVideoConfig} from 'remotion';\nimport {THEME, toneColor} from '../theme';\nimport type {ComparisonScene as ComparisonSceneData, ComparisonSide} from '../types';\nimport {ramp} from '../utils/easing';\n\nconst Side: React.FC<{side: ComparisonSide; progress: number; fromX: number}> = ({\n  side,\n  progress,\n  fromX,\n}) => (\n  <div style={{opacity: progress, transform: `translateX(${(1 - progress) * fromX}px)`}}>\n    <div style={{fontSize: THEME.type.body, color: THEME.colors.muted}}>{side.label}</div>\n    <div\n      style={{\n        fontFamily: THEME.fonts.display,\n        fontWeight: 700,\n        fontSize: 170,\n        lineHeight: 1.05,\n        color: side.tone ? toneColor(side.tone) : THEME.colors.text,\n      }}\n    >\n      {side.value}\n    </div>\n    {side.note ? <div style={{fontSize: THEME.type.small, color: THEME.colors.muted}}>{side.note}</div> : null}\n  </div>\n);\n\nexport const ComparisonScene: React.FC<{scene: ComparisonSceneData}> = ({scene}) => {\n  const frame = useCurrentFrame();\n  const {fps} = useVideoConfig();\n  const titleIn = ramp(frame, 0, fps * 0.6);\n  const left = ramp(frame, fps * 0.4, fps * 0.9);\n  const right = ramp(frame, fps * 1.4, fps * 0.9);\n  const rule = ramp(frame, fps * 1.0, fps * 0.8);\n\n  return (\n    <div style={{height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 44}}>\n      {scene.title ? (\n        <div\n          style={{\n            fontFamily: THEME.fonts.display,\n            fontWeight: 700,\n            fontSize: THEME.type.h2,\n            lineHeight: 1.12,\n            opacity: titleIn,\n          }}\n        >\n          {scene.title}\n        </div>\n      ) : null}\n      <Side side={scene.left} progress={left} fromX={-80} />\n      <div style={{height: 2, width: `${rule * 100}%`, background: THEME.colors.line}} />\n      <Side side={scene.right} progress={right} fromX={80} />\n    </div>\n  );\n};\n",
- "src/finance-doc/components/QuoteScene.tsx": "import React from 'react';\nimport {THEME} from '../theme';\nimport type {QuoteScene as QuoteSceneData} from '../types';\nimport {useEnter} from '../hooks/useSceneProgress';\n\nexport const QuoteScene: React.FC<{scene: QuoteSceneData}> = ({scene}) => {\n  const enter = useEnter(0);\n  const authorIn = useEnter(18);\n\n  return (\n    <div style={{height: '100%', display: 'flex', alignItems: 'center', gap: 36}}>\n      <div\n        style={{\n          alignSelf: 'stretch',\n          width: 10,\n          margin: '160px 0',\n          borderRadius: 5,\n          background: THEME.colors.accent,\n          transform: `scaleY(${enter})`,\n          transformOrigin: 'top',\n        }}\n      />\n      <div>\n        <div\n          style={{\n            fontFamily: THEME.fonts.display,\n            fontStyle: 'italic',\n            fontSize: 68,\n            lineHeight: 1.2,\n            opacity: enter,\n          }}\n        >\n          {scene.quote}\n        </div>\n        <div style={{marginTop: 44, fontSize: THEME.type.body, opacity: authorIn}}>\n          <span style={{fontWeight: 700}}>{scene.author}</span>\n          {scene.role ? <span style={{color: THEME.colors.muted}}>, {scene.role}</span> : null}\n        </div>\n      </div>\n    </div>\n  );\n};\n",
- "src/finance-doc/audio/AudioLayer.tsx": "import React from 'react';\nimport {Audio, Sequence, interpolate, staticFile, useVideoConfig} from 'remotion';\nimport type {TimedScene} from '../timing';\nimport type {DocumentaryManifest} from '../types';\n\nconst resolveSrc = (src: string): string => (/^https?:\\/\\//.test(src) ? src : staticFile(src));\n\n/** Narration, background music (with 1s fades), and per-scene sound effects. */\nexport const AudioLayer: React.FC<{manifest: DocumentaryManifest; timed: TimedScene[]}> = ({\n  manifest,\n  timed,\n}) => {\n  const {fps, durationInFrames} = useVideoConfig();\n  const base = manifest.musicVolume ?? 0.12;\n  const canFade = durationInFrames > fps * 2;\n\n  const musicVolume = (f: number): number =>\n    canFade\n      ? interpolate(f, [0, fps, durationInFrames - fps, durationInFrames], [0, base, base, 0], {\n          extrapolateLeft: 'clamp',\n          extrapolateRight: 'clamp',\n        })\n      : base;\n\n  return (\n    <>\n      {manifest.narrationSrc ? <Audio src={resolveSrc(manifest.narrationSrc)} /> : null}\n      {manifest.musicSrc ? <Audio src={resolveSrc(manifest.musicSrc)} volume={musicVolume} loop /> : null}\n      {timed.map((t) =>\n        t.scene.sfx ? (\n          <Sequence key={`sfx-${t.scene.id}`} from={t.from} durationInFrames={t.duration}>\n            <Audio src={resolveSrc(t.scene.sfx)} />\n          </Sequence>\n        ) : null,\n      )}\n    </>\n  );\n};\n",
- "src/finance-doc/README.md": "# Vertical Financial Documentary Engine\n\nA manifest-driven Remotion composition for 1080x1920, 30fps explainers.\nDuration is computed from the scene list, so add or remove scenes freely.\n\n## Register (done by the setup script)\n\n```tsx\n<Composition\n  id=\"FinancialDocumentary\"\n  component={FinancialDocumentary}\n  durationInFrames={30 * 45}\n  fps={30}\n  width={1080}\n  height={1920}\n  defaultProps={defaultFinancialDocProps}\n  calculateMetadata={calculateFinancialDocMetadata}\n/>\n```\n\n## Render\n\n```\nnpx remotion render FinancialDocumentary out/finance-doc.mp4\nnpx remotion render FinancialDocumentary out/custom.mp4 --props=./my-manifest.json\n```\n\n`my-manifest.json` must look like `{ \"manifest\": { ...DocumentaryManifest } }`.\n\n## Scene types\n\nEvery scene has `id`, `type`, `durationSec`, and optionally `caption`, `source`, `sfx`.\n\n| type | fields |\n| --- | --- |\n| `intro` | `title`, `subtitle?` |\n| `headline` | `headline`, `kicker?`, `body?`, `tone?` |\n| `line-chart` | `title`, `labels[]`, `values[]`, `valuePrefix?`, `valueSuffix?` |\n| `bar-chart` | `title`, `data[{label,value,color?}]`, `valuePrefix?`, `valueSuffix?` |\n| `ticker` | `title?`, `items[{symbol,name?,price,changePct}]`, `currency?` |\n| `stat` | `label`, `value`, `prefix?`, `suffix?`, `decimals?`, `note?`, `tone?` |\n| `comparison` | `title?`, `left{label,value,note?,tone?}`, `right{...}` |\n| `quote` | `quote`, `author`, `role?` |\n| `outro` | `title`, `cta?` |\n\n`tone` is `neutral` (amber), `gain` (green) or `loss` (red).\n\n## Examples\n\n```json\n{ \"id\": \"mkts\", \"type\": \"ticker\", \"durationSec\": 7, \"title\": \"Markets today\",\n  \"items\": [\n    { \"symbol\": \"AAA\", \"name\": \"Example Co\", \"price\": 123.45, \"changePct\": 1.2 },\n    { \"symbol\": \"BBB\", \"name\": \"Sample Inc\", \"price\": 67.89, \"changePct\": -0.8 }\n  ] }\n```\n\n```json\n{ \"id\": \"q\", \"type\": \"quote\", \"durationSec\": 6,\n  \"quote\": \"Your quote here.\", \"author\": \"Name\", \"role\": \"Title\" }\n```\n\n## Audio\n\nPut files in `public/` and reference them by relative path in the manifest:\n`narrationSrc`, `musicSrc`, `musicVolume`, or per-scene `sfx`. Missing files\nmake the render fail, so leave these unset until the files exist.\n\n## Layout\n\nContent sits inside a safe area (top 200px, bottom 520px, sides 72px) so it\nstays clear of Reels / Shorts / TikTok UI. Adjust in `theme.ts`.\n\nThe sample manifest is illustrative compounding arithmetic, not market data.\n"
-};
-
-for (const [rel, content] of Object.entries(FILES)) {
-  const dest = path.join(root, rel);
-  fs.mkdirSync(path.dirname(dest), {recursive: true});
-  fs.writeFileSync(dest, content, 'utf8');
-}
-console.log(`Wrote ${Object.keys(FILES).length} files under src/finance-doc/`);
-
-// ---- patch src/Root.tsx
-const IMPORT = "import { FinancialDocumentary, calculateFinancialDocMetadata, defaultFinancialDocProps } from './finance-doc';";
-const COMP = [
-  '<Composition',
-  '    id="FinancialDocumentary"',
-  '    component={FinancialDocumentary}',
-  '    durationInFrames={30 * 45}',
-  '    fps={30}',
-  '    width={1080}',
-  '    height={1920}',
-  '    defaultProps={defaultFinancialDocProps}',
-  '    calculateMetadata={calculateFinancialDocMetadata}',
-  '/>',
-];
-
-function patchRoot() {
-  const src = fs.readFileSync(rootTsx, 'utf8');
-  if (src.includes('FinancialDocumentary')) {
-    console.log('Root.tsx already registers FinancialDocumentary - skipped.');
-    return;
-  }
-  const eol = src.includes('\r\n') ? '\r\n' : '\n';
-  const lines = src.split(/\r?\n/);
-
-  let last = -1;
-  lines.forEach((l, i) => { if (l.startsWith('import ')) last = i; });
-  if (last < 0) {
-    console.log('No imports found in Root.tsx. Add manually:\n' + IMPORT + '\n' + COMP.join('\n'));
-    return;
-  }
-  while (!lines[last].includes(';') && last < lines.length - 1) last++;
-
-  let close = -1;
-  for (let i = lines.length - 1; i >= 0; i--) {
-    if (lines[i].trim() === '</>') { close = i; break; }
-  }
-  if (close < 0) {
-    console.log('Could not find a closing </> in Root.tsx; nothing was changed. Add manually:\n' + IMPORT + '\n' + COMP.join('\n'));
-    return;
-  }
-
-  const indent = lines[close].match(/^\s*/)[0] + '    ';
-  lines.splice(close, 0, ...COMP.map((c) => indent + c)); // later index first
-  lines.splice(last + 1, 0, IMPORT);
-  fs.writeFileSync(rootTsx, lines.join(eol), 'utf8');
-  console.log('Patched src/Root.tsx');
-}
-patchRoot();
-
-// ---- git (optional)
-if (doGit) {
-  const run = (cmd) => execSync(cmd, {cwd: root, stdio: 'inherit'});
-  run('git rev-parse --is-inside-work-tree');
-  run(`git checkout -b ${BRANCH}`);
-  run('git add src/finance-doc src/Root.tsx');
-  run('git commit -m "Add vertical financial documentary engine (FinancialDocumentary, 1080x1920 @ 30fps)"');
-  if (doPush) run(`git push -u origin ${BRANCH}`);
-  else console.log(`Committed on ${BRANCH}. Push with: git push -u origin ${BRANCH}`);
-}
+const root = process.cwd();
+const TOPIC = process.env.VIDEO_TOPIC || 'Financial News';
+const DURATION = Number(process.env.VIDEO_DURATION) || 30;
+const LANGUAGE = process.env.VIDEO_LANGUAGE || 'English';
+const STYLE = process.env.VIDEO_STYLE || 'Vox Financial';
 
 // ---- Generate the manifest for VIDEO_TOPIC with Groq and write out/props.json
 const SCENE_TYPES = ['intro', 'headline', 'bar-chart', 'line-chart', 'ticker', 'stat', 'comparison', 'quote', 'outro'];
-const isStr = (v) => typeof v === 'string' && v.trim().length > 0;
+const TONES = ['neutral', 'gain', 'loss'];
+
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
-const REQUIRED = {
-  'intro': (s) => isStr(s.title),
-  'headline': (s) => isStr(s.headline),
-  'bar-chart': (s) => isStr(s.title) && Array.isArray(s.data) && s.data.length > 0 && s.data.every((d) => isStr(d.label) && isNum(d.value)),
-  'line-chart': (s) => isStr(s.title) && Array.isArray(s.values) && s.values.length >= 2 && s.values.every(isNum) && Array.isArray(s.labels) && s.labels.length === s.values.length,
-  'ticker': (s) => Array.isArray(s.items) && s.items.length > 0 && s.items.every((i) => isStr(i.symbol) && isNum(i.price) && isNum(i.changePct)),
-  'stat': (s) => isStr(s.label) && isNum(s.value),
-  'comparison': (s) => s.left && s.right && isStr(s.left.label) && isStr(s.left.value) && isStr(s.right.label) && isStr(s.right.value),
-  'quote': (s) => isStr(s.quote) && isStr(s.author),
-  'outro': (s) => isStr(s.title),
+const str = (v) => (typeof v === 'string' ? v.trim() : isNum(v) ? String(v) : '');
+const num = (v) => {
+  const n = typeof v === 'string' ? Number(v.replace(/[,%$\s]/g, '')) : v;
+  return isNum(n) ? n : null;
 };
+// First non-empty string among several possible key names (LLMs often rename fields).
+const pick = (o, ...keys) => {
+  for (const k of keys) { const s = str(o && o[k]); if (s) return s; }
+  return '';
+};
+const tone = (v) => (TONES.includes(v) ? v : undefined);
+
+// Returns a valid scene (filling safe defaults) or null if the scene is unusable.
+function sanitizeScene(sc, i, m) {
+  if (!sc || typeof sc !== 'object') return null;
+  const type = str(sc.type).toLowerCase().replace(/_/g, '-');
+  if (!SCENE_TYPES.includes(type)) return null;
+
+  const base = {
+    type,
+    durationSec: num(sc.durationSec) > 0 ? num(sc.durationSec) : 5,
+    caption: pick(sc, 'caption', 'narration', 'voiceover', 'text') || undefined,
+    source: pick(sc, 'source') || undefined,
+  };
+  const headlineFallback = (why) => {
+    const h = pick(sc, 'headline', 'title', 'label', 'kicker') || base.caption;
+    if (!h) return null;
+    console.warn(`Scene ${i + 1} (${type}) was invalid (${why}); converted to a headline scene.`);
+    return {...base, type: 'headline', headline: h, body: pick(sc, 'body', 'note', 'subtitle') || undefined};
+  };
+
+  switch (type) {
+    case 'intro':
+      return {...base, title: pick(sc, 'title', 'headline', 'text') || str(m.title) || TOPIC,
+        subtitle: pick(sc, 'subtitle', 'kicker', 'body') || undefined};
+
+    case 'headline': {
+      const headline = pick(sc, 'headline', 'title', 'text') || base.caption;
+      if (!headline) return null;
+      return {...base, headline, kicker: pick(sc, 'kicker') || undefined,
+        body: pick(sc, 'body', 'note', 'subtitle') || undefined, tone: tone(sc.tone)};
+    }
+
+    case 'bar-chart': {
+      const data = (Array.isArray(sc.data) ? sc.data : [])
+        .map((d) => ({label: pick(d, 'label', 'name'), value: num(d && d.value)}))
+        .filter((d) => d.label && d.value !== null);
+      if (!data.length) return headlineFallback('no valid data');
+      return {...base, title: pick(sc, 'title', 'headline') || str(m.title) || TOPIC, data,
+        valuePrefix: str(sc.valuePrefix) || undefined, valueSuffix: str(sc.valueSuffix) || undefined};
+    }
+
+    case 'line-chart': {
+      const values = (Array.isArray(sc.values) ? sc.values : []).map(num).filter((v) => v !== null);
+      if (values.length < 2) return headlineFallback('fewer than 2 values');
+      const rawLabels = Array.isArray(sc.labels) ? sc.labels : [];
+      // labels must match values one-to-one: trim extras, pad missing with ''
+      const labels = values.map((_, k) => str(rawLabels[k]));
+      return {...base, title: pick(sc, 'title', 'headline') || str(m.title) || TOPIC, labels, values,
+        valuePrefix: str(sc.valuePrefix) || undefined, valueSuffix: str(sc.valueSuffix) || undefined};
+    }
+
+    case 'ticker': {
+      const items = (Array.isArray(sc.items) ? sc.items : [])
+        .map((t) => ({symbol: pick(t, 'symbol', 'ticker', 'name'), name: pick(t, 'name') || undefined,
+          price: num(t && t.price), changePct: num(t && (t.changePct ?? t.change))}))
+        .filter((t) => t.symbol && t.price !== null)
+        .map((t) => ({...t, changePct: t.changePct === null ? 0 : t.changePct}));
+      if (!items.length) return headlineFallback('no valid items');
+      return {...base, title: pick(sc, 'title') || undefined, items, currency: str(sc.currency) || undefined};
+    }
+
+    case 'stat': {
+      const value = num(sc.value);
+      const label = pick(sc, 'label', 'title', 'headline') || base.caption;
+      if (value === null || !label) return headlineFallback('missing value or label');
+      const decimals = Number.isInteger(sc.decimals) && sc.decimals >= 0 && sc.decimals <= 4 ? sc.decimals : undefined;
+      return {...base, label, value, prefix: str(sc.prefix) || undefined, suffix: str(sc.suffix) || undefined,
+        decimals, note: pick(sc, 'note', 'body') || undefined, tone: tone(sc.tone)};
+    }
+
+    case 'comparison': {
+      const side = (s, fallbackLabel) => {
+        const value = pick(s, 'value', 'amount');
+        if (!value) return null;
+        return {label: pick(s, 'label', 'title') || fallbackLabel, value,
+          note: pick(s, 'note') || undefined, tone: tone(s && s.tone)};
+      };
+      const left = side(sc.left, 'A');
+      const right = side(sc.right, 'B');
+      if (!left || !right) return headlineFallback('missing left/right');
+      return {...base, title: pick(sc, 'title') || undefined, left, right};
+    }
+
+    case 'quote': {
+      const quote = pick(sc, 'quote', 'text');
+      if (!quote) return headlineFallback('missing quote');
+      return {...base, quote, author: pick(sc, 'author', 'name') || 'Unknown', role: pick(sc, 'role') || undefined};
+    }
+
+    case 'outro':
+      return {...base, title: pick(sc, 'title', 'headline', 'text') || base.caption || str(m.title) || TOPIC,
+        cta: pick(sc, 'cta', 'subtitle') || undefined};
+  }
+  return null;
+}
 
 function normalizeManifest(m) {
-  if (!m || !Array.isArray(m.scenes) || m.scenes.length < 2) throw new Error('AI response has no usable "scenes" array.');
-  const scenes = m.scenes.map((sc, i) => {
-    if (!SCENE_TYPES.includes(sc.type)) throw new Error(`Scene ${i + 1}: unknown type "${sc.type}".`);
-    if (!REQUIRED[sc.type](sc)) throw new Error(`Scene ${i + 1} (${sc.type}): missing or invalid fields.`);
-    return {...sc, id: `s${i + 1}`, durationSec: isNum(sc.durationSec) && sc.durationSec > 0 ? sc.durationSec : 5};
-  });
-  // Scale scene lengths so the video lasts the requested duration.
+  if (!m || typeof m !== 'object') throw new Error('AI response is not a JSON object.');
+  // Some models wrap the result, e.g. {"manifest": {...}} or return a bare scenes array.
+  if (Array.isArray(m)) m = {scenes: m};
+  if (!Array.isArray(m.scenes) && m.manifest && Array.isArray(m.manifest.scenes)) m = m.manifest;
+  if (!Array.isArray(m.scenes)) throw new Error('AI response has no "scenes" array.');
+
+  let scenes = m.scenes.map((sc, i) => sanitizeScene(sc, i, m)).filter(Boolean);
+  if (scenes.length < 2) throw new Error(`Only ${scenes.length} usable scene(s) after sanitizing.`);
+
+  // Guarantee the structure: intro first, outro last.
+  const title = str(m.title) || TOPIC;
+  if (scenes[0].type !== 'intro') scenes.unshift({type: 'intro', durationSec: 4, title});
+  if (scenes[scenes.length - 1].type !== 'outro') scenes.push({type: 'outro', durationSec: 4, title});
+
+  // Assign ids and scale durations so the video lasts the requested time.
   const sum = scenes.reduce((a, sc) => a + sc.durationSec, 0);
-  scenes.forEach((sc) => { sc.durationSec = Math.max(1.5, Math.round((sc.durationSec * DURATION / sum) * 10) / 10); });
-  return {title: isStr(m.title) ? m.title : TOPIC, brand: isStr(m.brand) ? m.brand : undefined, captions: true, scenes};
+  scenes = scenes.map((sc, i) => ({
+    ...sc,
+    id: `s${i + 1}`,
+    durationSec: Math.max(1.5, Math.round(((sc.durationSec * DURATION) / sum) * 10) / 10),
+  }));
+  return {title, brand: str(m.brand) || undefined, captions: true, scenes};
+}
+
+// Pulls a JSON object out of the model output, even if wrapped in ```json fences or prose.
+function extractJson(content) {
+  const cleaned = content.replace(/```json|```/gi, '').trim();
+  try { return JSON.parse(cleaned); } catch (_) { /* fall through */ }
+  const a = cleaned.indexOf('{');
+  const b = cleaned.lastIndexOf('}');
+  if (a >= 0 && b > a) return JSON.parse(cleaned.slice(a, b + 1));
+  throw new Error('no JSON object found');
+}
+
+function buildSystemPrompt(count) {
+  const example = {
+    title: 'Example title',
+    brand: 'Example brand',
+    scenes: [
+      {type: 'intro', durationSec: 4, title: 'Main title', subtitle: 'Short subtitle', caption: 'Narration line.'},
+      {type: 'headline', durationSec: 5, kicker: 'Context', headline: 'Key message', body: 'One supporting sentence.', tone: 'neutral', caption: 'Narration line.'},
+      {type: 'line-chart', durationSec: 6, title: 'Chart title', labels: ['2020', '2021', '2022'], values: [10, 14, 21], valuePrefix: '$', source: 'Approximate figures', caption: 'Narration line.'},
+      {type: 'bar-chart', durationSec: 6, title: 'Chart title', data: [{label: 'A', value: 30}, {label: 'B', value: 20}], caption: 'Narration line.'},
+      {type: 'stat', durationSec: 5, label: 'What the number means', value: 42, suffix: '%', decimals: 0, note: 'Short note', tone: 'gain', caption: 'Narration line.'},
+      {type: 'comparison', durationSec: 5, title: 'A vs B', left: {label: 'A', value: '$10K', note: 'note'}, right: {label: 'B', value: '$25K', note: 'note'}, caption: 'Narration line.'},
+      {type: 'outro', durationSec: 4, title: 'Closing line', cta: 'Follow for more', caption: 'Narration line.'},
+    ],
+  };
+  return [
+    'You write scene manifests for a vertical financial documentary video.',
+    'Reply with ONE valid JSON object and nothing else: no markdown, no code fences, no comments, no trailing commas.',
+    'Top-level shape: {"title": string, "brand": string, "scenes": Scene[]}.',
+    'EVERY scene MUST contain "type", "durationSec" (number) and "caption" (the narration line, one sentence).',
+    'Field names are exact. Do not rename, omit or add fields. Required fields are marked with *.',
+    '- intro: title*, subtitle',
+    '- headline: headline*, kicker, body, tone ("neutral"|"gain"|"loss")',
+    '- bar-chart: title*, data*: [{label*, value*}] (numbers only), valuePrefix, valueSuffix, source',
+    '- line-chart: title*, labels*: string[], values*: number[] (same length as labels, at least 2), valuePrefix, valueSuffix, source',
+    '- ticker: title, items*: [{symbol*, name, price* (number), changePct* (number)}]',
+    '- stat: label*, value* (number, not a string), prefix, suffix, decimals, note, tone',
+    '- comparison: title, left*: {label*, value* (string), note}, right*: {label*, value* (string), note}',
+    '- quote: quote*, author*, role',
+    '- outro: title*, cta',
+    `Use exactly ${count} scenes. The first scene is "intro" and the last is "outro". Durations must add up to about ${DURATION} seconds.`,
+    `Write ALL on-screen text and captions in ${LANGUAGE}. Visual style: ${STYLE}.`,
+    'All numbers must be plain JSON numbers (no "$", "%", commas or units inside numeric fields; put those in prefix/suffix).',
+    'Use only well-known facts and round figures. If unsure of a number, do not invent precision; say it is approximate in "source".',
+    'Example of the exact format (structure only, do not copy the content):',
+    JSON.stringify(example),
+  ].join('\n');
+}
+
+async function callGroq(key, model, messages, attempt) {
+  const isGptOss = /gpt-oss/i.test(model);
+  const body = {
+    model,
+    max_completion_tokens: 8192,
+    temperature: attempt === 0 ? 0.5 : 0.2,
+    response_format: {type: 'json_object'},
+    messages,
+  };
+  // reasoning_effort is only accepted by reasoning models (gpt-oss); keep it low to save tokens.
+  if (isGptOss) body.reasoning_effort = process.env.GROQ_REASONING_EFFORT || 'low';
+
+  const res = await fetch('[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', Authorization: `Bearer ${key}`},
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Groq API ${res.status} (${model}): ${(await res.text()).slice(0, 300)}`);
+  const data = await res.json();
+  const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+  if (!content) throw new Error(`Groq returned an empty response (${model}).`);
+  return content;
 }
 
 async function generateManifest() {
   const key = process.env.GROQ_API_KEY;
   if (!key) throw new Error('GROQ_API_KEY is missing. Add it as a repository secret.');
   const count = Math.min(12, Math.max(3, Math.round(DURATION / 5)));
-  const system = [
-    'You write scene manifests for a vertical financial documentary video. Reply with ONE JSON object only.',
-    'Shape: {"title": string, "brand": string, "scenes": Scene[]}. Every scene has "type", "durationSec" (number) and "caption" (the narration line).',
-    'Allowed scene types and their fields:',
-    '- intro: title, subtitle?',
-    '- headline: headline, kicker?, body?, tone? ("neutral"|"gain"|"loss")',
-    '- bar-chart: title, data:[{label,value}], valuePrefix?, valueSuffix?, source?',
-    '- line-chart: title, labels:string[], values:number[] (same length, at least 2), valuePrefix?, valueSuffix?, source?',
-    '- ticker: title?, items:[{symbol,name?,price,changePct}]',
-    '- stat: label, value (number), prefix?, suffix?, decimals?, note?, tone?',
-    '- comparison: title?, left:{label,value,note?}, right:{label,value,note?} (value is a string)',
-    '- quote: quote, author, role?',
-    '- outro: title, cta?',
-    `Use exactly ${count} scenes: first is "intro", last is "outro". Durations must add up to about ${DURATION} seconds.`,
-    `Write ALL on-screen text and captions in ${LANGUAGE}. Visual style: ${STYLE}.`,
-    'Use only well-known facts and round figures. If unsure of a number, do not invent precision; say it is approximate in "source".',
-  ].join('\n');
+  const system = buildSystemPrompt(count);
 
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json', Authorization: `Bearer ${key}`},
-    body: JSON.stringify({
-      // llama-3.3-70b-versatile was retired by Groq on 2026-08-16. Override with the GROQ_MODEL env var if needed.
-      model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b',
-      reasoning_effort: process.env.GROQ_REASONING_EFFORT || 'low',
-      max_completion_tokens: 8192,
-      temperature: 0.6,
-      response_format: {type: 'json_object'},
-      messages: [{role: 'system', content: system}, {role: 'user', content: `Topic: ${TOPIC}`}],
-    }),
-  });
-  if (!res.ok) throw new Error(`Groq API ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  const data = await res.json();
-  const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-  if (!content) throw new Error('Groq returned an empty response.');
-  let parsed;
-  try { parsed = JSON.parse(content); } catch (e) { throw new Error('Groq did not return valid JSON: ' + content.slice(0, 200)); }
-  return normalizeManifest(parsed);
+  // GROQ_MODEL overrides the first choice; the rest are fallbacks if a model is retired or errors out.
+  const models = [process.env.GROQ_MODEL, 'openai/gpt-oss-120b', 'openai/gpt-oss-20b']
+    .filter(Boolean)
+    .filter((m, i, arr) => arr.indexOf(m) === i);
+
+  const messages = [
+    {role: 'system', content: system},
+    {role: 'user', content: `Topic: ${TOPIC}\nReturn the JSON object now.`},
+  ];
+
+  let lastErr;
+  const MAX_ATTEMPTS = 4;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const model = models[Math.min(attempt, models.length - 1)];
+    try {
+      console.log(`Groq attempt ${attempt + 1}/${MAX_ATTEMPTS} with ${model}`);
+      const content = await callGroq(key, model, messages, attempt);
+      const parsed = extractJson(content);
+      return normalizeManifest(parsed);
+    } catch (err) {
+      lastErr = err;
+      console.warn(`Attempt ${attempt + 1} failed: ${err.message}`);
+      // Retry with feedback so the model can correct itself.
+      messages.push({
+        role: 'user',
+        content: `Your previous reply was rejected: ${err.message}. Reply again with ONE complete JSON object that follows the schema exactly.`,
+      });
+    }
+  }
+  throw new Error(`All ${MAX_ATTEMPTS} attempts failed. Last error: ${lastErr && lastErr.message}`);
 }
 
 generateManifest()
